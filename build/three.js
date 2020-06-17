@@ -9141,11 +9141,13 @@
 
 	var _vector$3 = new Vector3();
 
-	function BufferAttribute( array, itemSize, normalized ) {
+	function BufferAttribute(array, itemSize, normalized)
+	{
 
-		if ( Array.isArray( array ) ) {
+		if (Array.isArray(array))
+		{
 
-			throw new TypeError( 'THREE.BufferAttribute: array should be a Typed Array.' );
+			throw new TypeError('THREE.BufferAttribute: array should be a Typed Array.');
 
 		}
 
@@ -9157,29 +9159,31 @@
 		this.normalized = normalized === true;
 
 		this.usage = StaticDrawUsage;
-		this.updateRange = { offset: 0, count: - 1 };
+		this.updateRanges = new Map();
 
 		this.version = 0;
 
 	}
 
-	Object.defineProperty( BufferAttribute.prototype, 'needsUpdate', {
+	Object.defineProperty(BufferAttribute.prototype, 'needsUpdate', {
 
-		set: function ( value ) {
+		set: function (value)
+		{
 
-			if ( value === true ) { this.version ++; }
+			if (value === true) { this.version++; }
 
 		}
 
-	} );
+	});
 
-	Object.assign( BufferAttribute.prototype, {
+	Object.assign(BufferAttribute.prototype, {
 
 		isBufferAttribute: true,
 
-		onUploadCallback: function () {},
+		onUploadCallback: function () { },
 
-		setUsage: function ( value ) {
+		setUsage: function (value)
+		{
 
 			this.usage = value;
 
@@ -9187,10 +9191,11 @@
 
 		},
 
-		copy: function ( source ) {
+		copy: function (source)
+		{
 
 			this.name = source.name;
-			this.array = new source.array.constructor( source.array );
+			this.array = new source.array.constructor(source.array);
 			this.itemSize = source.itemSize;
 			this.count = source.count;
 			this.normalized = source.normalized;
@@ -9201,14 +9206,16 @@
 
 		},
 
-		copyAt: function ( index1, attribute, index2 ) {
+		copyAt: function (index1, attribute, index2)
+		{
 
 			index1 *= this.itemSize;
 			index2 *= attribute.itemSize;
 
-			for ( var i = 0, l = this.itemSize; i < l; i ++ ) {
+			for (var i = 0, l = this.itemSize; i < l; i++)
+			{
 
-				this.array[ index1 + i ] = attribute.array[ index2 + i ];
+				this.array[index1 + i] = attribute.array[index2 + i];
 
 			}
 
@@ -9216,32 +9223,36 @@
 
 		},
 
-		copyArray: function ( array ) {
+		copyArray: function (array)
+		{
 
-			this.array.set( array );
+			this.array.set(array);
 
 			return this;
 
 		},
 
-		copyColorsArray: function ( colors ) {
+		copyColorsArray: function (colors)
+		{
 
 			var array = this.array, offset = 0;
 
-			for ( var i = 0, l = colors.length; i < l; i ++ ) {
+			for (var i = 0, l = colors.length; i < l; i++)
+			{
 
-				var color = colors[ i ];
+				var color = colors[i];
 
-				if ( color === undefined ) {
+				if (color === undefined)
+				{
 
-					console.warn( 'THREE.BufferAttribute.copyColorsArray(): color is undefined', i );
+					console.warn('THREE.BufferAttribute.copyColorsArray(): color is undefined', i);
 					color = new Color();
 
 				}
 
-				array[ offset ++ ] = color.r;
-				array[ offset ++ ] = color.g;
-				array[ offset ++ ] = color.b;
+				array[offset++] = color.r;
+				array[offset++] = color.g;
+				array[offset++] = color.b;
 
 			}
 
@@ -9249,23 +9260,26 @@
 
 		},
 
-		copyVector2sArray: function ( vectors ) {
+		copyVector2sArray: function (vectors)
+		{
 
 			var array = this.array, offset = 0;
 
-			for ( var i = 0, l = vectors.length; i < l; i ++ ) {
+			for (var i = 0, l = vectors.length; i < l; i++)
+			{
 
-				var vector = vectors[ i ];
+				var vector = vectors[i];
 
-				if ( vector === undefined ) {
+				if (vector === undefined)
+				{
 
-					console.warn( 'THREE.BufferAttribute.copyVector2sArray(): vector is undefined', i );
+					console.warn('THREE.BufferAttribute.copyVector2sArray(): vector is undefined', i);
 					vector = new Vector2();
 
 				}
 
-				array[ offset ++ ] = vector.x;
-				array[ offset ++ ] = vector.y;
+				array[offset++] = vector.x;
+				array[offset++] = vector.y;
 
 			}
 
@@ -9273,24 +9287,27 @@
 
 		},
 
-		copyVector3sArray: function ( vectors ) {
+		copyVector3sArray: function (vectors)
+		{
 
 			var array = this.array, offset = 0;
 
-			for ( var i = 0, l = vectors.length; i < l; i ++ ) {
+			for (var i = 0, l = vectors.length; i < l; i++)
+			{
 
-				var vector = vectors[ i ];
+				var vector = vectors[i];
 
-				if ( vector === undefined ) {
+				if (vector === undefined)
+				{
 
-					console.warn( 'THREE.BufferAttribute.copyVector3sArray(): vector is undefined', i );
+					console.warn('THREE.BufferAttribute.copyVector3sArray(): vector is undefined', i);
 					vector = new Vector3();
 
 				}
 
-				array[ offset ++ ] = vector.x;
-				array[ offset ++ ] = vector.y;
-				array[ offset ++ ] = vector.z;
+				array[offset++] = vector.x;
+				array[offset++] = vector.y;
+				array[offset++] = vector.z;
 
 			}
 
@@ -9298,25 +9315,28 @@
 
 		},
 
-		copyVector4sArray: function ( vectors ) {
+		copyVector4sArray: function (vectors)
+		{
 
 			var array = this.array, offset = 0;
 
-			for ( var i = 0, l = vectors.length; i < l; i ++ ) {
+			for (var i = 0, l = vectors.length; i < l; i++)
+			{
 
-				var vector = vectors[ i ];
+				var vector = vectors[i];
 
-				if ( vector === undefined ) {
+				if (vector === undefined)
+				{
 
-					console.warn( 'THREE.BufferAttribute.copyVector4sArray(): vector is undefined', i );
+					console.warn('THREE.BufferAttribute.copyVector4sArray(): vector is undefined', i);
 					vector = new Vector4();
 
 				}
 
-				array[ offset ++ ] = vector.x;
-				array[ offset ++ ] = vector.y;
-				array[ offset ++ ] = vector.z;
-				array[ offset ++ ] = vector.w;
+				array[offset++] = vector.x;
+				array[offset++] = vector.y;
+				array[offset++] = vector.z;
+				array[offset++] = vector.w;
 
 			}
 
@@ -9324,35 +9344,19 @@
 
 		},
 
-		applyMatrix3: function ( m ) {
+		applyMatrix3: function (m)
+		{
 
-			for ( var i = 0, l = this.count; i < l; i ++ ) {
+			for (var i = 0, l = this.count; i < l; i++)
+			{
 
-				_vector$3.x = this.getX( i );
-				_vector$3.y = this.getY( i );
-				_vector$3.z = this.getZ( i );
+				_vector$3.x = this.getX(i);
+				_vector$3.y = this.getY(i);
+				_vector$3.z = this.getZ(i);
 
-				_vector$3.applyMatrix3( m );
+				_vector$3.applyMatrix3(m);
 
-				this.setXYZ( i, _vector$3.x, _vector$3.y, _vector$3.z );
-
-			}
-
-			return this;
-
-		},
-
-		applyMatrix4: function ( m ) {
-
-			for ( var i = 0, l = this.count; i < l; i ++ ) {
-
-				_vector$3.x = this.getX( i );
-				_vector$3.y = this.getY( i );
-				_vector$3.z = this.getZ( i );
-
-				_vector$3.applyMatrix4( m );
-
-				this.setXYZ( i, _vector$3.x, _vector$3.y, _vector$3.z );
+				this.setXYZ(i, _vector$3.x, _vector$3.y, _vector$3.z);
 
 			}
 
@@ -9360,35 +9364,19 @@
 
 		},
 
-		applyNormalMatrix: function ( m ) {
+		applyMatrix4: function (m)
+		{
 
-			for ( var i = 0, l = this.count; i < l; i ++ ) {
+			for (var i = 0, l = this.count; i < l; i++)
+			{
 
-				_vector$3.x = this.getX( i );
-				_vector$3.y = this.getY( i );
-				_vector$3.z = this.getZ( i );
+				_vector$3.x = this.getX(i);
+				_vector$3.y = this.getY(i);
+				_vector$3.z = this.getZ(i);
 
-				_vector$3.applyNormalMatrix( m );
+				_vector$3.applyMatrix4(m);
 
-				this.setXYZ( i, _vector$3.x, _vector$3.y, _vector$3.z );
-
-			}
-
-			return this;
-
-		},
-
-		transformDirection: function ( m ) {
-
-			for ( var i = 0, l = this.count; i < l; i ++ ) {
-
-				_vector$3.x = this.getX( i );
-				_vector$3.y = this.getY( i );
-				_vector$3.z = this.getZ( i );
-
-				_vector$3.transformDirection( m );
-
-				this.setXYZ( i, _vector$3.x, _vector$3.y, _vector$3.z );
+				this.setXYZ(i, _vector$3.x, _vector$3.y, _vector$3.z);
 
 			}
 
@@ -9396,109 +9384,162 @@
 
 		},
 
-		set: function ( value, offset ) {
+		applyNormalMatrix: function (m)
+		{
 
-			if ( offset === undefined ) { offset = 0; }
+			for (var i = 0, l = this.count; i < l; i++)
+			{
 
-			this.array.set( value, offset );
+				_vector$3.x = this.getX(i);
+				_vector$3.y = this.getY(i);
+				_vector$3.z = this.getZ(i);
 
-			return this;
+				_vector$3.applyNormalMatrix(m);
 
-		},
+				this.setXYZ(i, _vector$3.x, _vector$3.y, _vector$3.z);
 
-		getX: function ( index ) {
-
-			return this.array[ index * this.itemSize ];
-
-		},
-
-		setX: function ( index, x ) {
-
-			this.array[ index * this.itemSize ] = x;
+			}
 
 			return this;
 
 		},
 
-		getY: function ( index ) {
+		transformDirection: function (m)
+		{
 
-			return this.array[ index * this.itemSize + 1 ];
+			for (var i = 0, l = this.count; i < l; i++)
+			{
 
-		},
+				_vector$3.x = this.getX(i);
+				_vector$3.y = this.getY(i);
+				_vector$3.z = this.getZ(i);
 
-		setY: function ( index, y ) {
+				_vector$3.transformDirection(m);
 
-			this.array[ index * this.itemSize + 1 ] = y;
+				this.setXYZ(i, _vector$3.x, _vector$3.y, _vector$3.z);
 
-			return this;
-
-		},
-
-		getZ: function ( index ) {
-
-			return this.array[ index * this.itemSize + 2 ];
-
-		},
-
-		setZ: function ( index, z ) {
-
-			this.array[ index * this.itemSize + 2 ] = z;
+			}
 
 			return this;
 
 		},
 
-		getW: function ( index ) {
+		set: function (value, offset)
+		{
 
-			return this.array[ index * this.itemSize + 3 ];
+			if (offset === undefined) { offset = 0; }
 
-		},
-
-		setW: function ( index, w ) {
-
-			this.array[ index * this.itemSize + 3 ] = w;
+			this.array.set(value, offset);
 
 			return this;
 
 		},
 
-		setXY: function ( index, x, y ) {
+		getX: function (index)
+		{
+
+			return this.array[index * this.itemSize];
+
+		},
+
+		setX: function (index, x)
+		{
+
+			this.array[index * this.itemSize] = x;
+
+			return this;
+
+		},
+
+		getY: function (index)
+		{
+
+			return this.array[index * this.itemSize + 1];
+
+		},
+
+		setY: function (index, y)
+		{
+
+			this.array[index * this.itemSize + 1] = y;
+
+			return this;
+
+		},
+
+		getZ: function (index)
+		{
+
+			return this.array[index * this.itemSize + 2];
+
+		},
+
+		setZ: function (index, z)
+		{
+
+			this.array[index * this.itemSize + 2] = z;
+
+			return this;
+
+		},
+
+		getW: function (index)
+		{
+
+			return this.array[index * this.itemSize + 3];
+
+		},
+
+		setW: function (index, w)
+		{
+
+			this.array[index * this.itemSize + 3] = w;
+
+			return this;
+
+		},
+
+		setXY: function (index, x, y)
+		{
 
 			index *= this.itemSize;
 
-			this.array[ index + 0 ] = x;
-			this.array[ index + 1 ] = y;
+			this.array[index + 0] = x;
+			this.array[index + 1] = y;
 
 			return this;
 
 		},
 
-		setXYZ: function ( index, x, y, z ) {
+		setXYZ: function (index, x, y, z)
+		{
 
 			index *= this.itemSize;
 
-			this.array[ index + 0 ] = x;
-			this.array[ index + 1 ] = y;
-			this.array[ index + 2 ] = z;
+			this.array[index + 0] = x;
+			this.array[index + 1] = y;
+			this.array[index + 2] = z;
 
 			return this;
 
 		},
 
-		setXYZW: function ( index, x, y, z, w ) {
+		setXYZW: function (index, x, y, z, w)
+		{
 
 			index *= this.itemSize;
 
-			this.array[ index + 0 ] = x;
-			this.array[ index + 1 ] = y;
-			this.array[ index + 2 ] = z;
-			this.array[ index + 3 ] = w;
+			this.array[index + 0] = x;
+			this.array[index + 1] = y;
+			this.array[index + 2] = z;
+			this.array[index + 3] = w;
 
 			return this;
 
 		},
 
-		onUpload: function ( callback ) {
+		onUpload: function (callback)
+		{
 
 			this.onUploadCallback = callback;
 
@@ -9506,114 +9547,125 @@
 
 		},
 
-		clone: function () {
+		clone: function ()
+		{
 
-			return new this.constructor( this.array, this.itemSize ).copy( this );
+			return new this.constructor(this.array, this.itemSize).copy(this);
 
 		},
 
-		toJSON: function () {
+		toJSON: function ()
+		{
 
 			return {
 				itemSize: this.itemSize,
 				type: this.array.constructor.name,
-				array: Array.prototype.slice.call( this.array ),
+				array: Array.prototype.slice.call(this.array),
 				normalized: this.normalized
 			};
 
 		}
 
-	} );
+	});
 
 	//
 
-	function Int8BufferAttribute( array, itemSize, normalized ) {
+	function Int8BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Int8Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Int8Array(array), itemSize, normalized);
 
 	}
 
-	Int8BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Int8BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Int8BufferAttribute.prototype.constructor = Int8BufferAttribute;
 
 
-	function Uint8BufferAttribute( array, itemSize, normalized ) {
+	function Uint8BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Uint8Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Uint8Array(array), itemSize, normalized);
 
 	}
 
-	Uint8BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Uint8BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Uint8BufferAttribute.prototype.constructor = Uint8BufferAttribute;
 
 
-	function Uint8ClampedBufferAttribute( array, itemSize, normalized ) {
+	function Uint8ClampedBufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Uint8ClampedArray( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Uint8ClampedArray(array), itemSize, normalized);
 
 	}
 
-	Uint8ClampedBufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Uint8ClampedBufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Uint8ClampedBufferAttribute.prototype.constructor = Uint8ClampedBufferAttribute;
 
 
-	function Int16BufferAttribute( array, itemSize, normalized ) {
+	function Int16BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Int16Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Int16Array(array), itemSize, normalized);
 
 	}
 
-	Int16BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Int16BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Int16BufferAttribute.prototype.constructor = Int16BufferAttribute;
 
 
-	function Uint16BufferAttribute( array, itemSize, normalized ) {
+	function Uint16BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Uint16Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Uint16Array(array), itemSize, normalized);
 
 	}
 
-	Uint16BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Uint16BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Uint16BufferAttribute.prototype.constructor = Uint16BufferAttribute;
 
 
-	function Int32BufferAttribute( array, itemSize, normalized ) {
+	function Int32BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Int32Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Int32Array(array), itemSize, normalized);
 
 	}
 
-	Int32BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Int32BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Int32BufferAttribute.prototype.constructor = Int32BufferAttribute;
 
 
-	function Uint32BufferAttribute( array, itemSize, normalized ) {
+	function Uint32BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Uint32Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Uint32Array(array), itemSize, normalized);
 
 	}
 
-	Uint32BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Uint32BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Uint32BufferAttribute.prototype.constructor = Uint32BufferAttribute;
 
 
-	function Float32BufferAttribute( array, itemSize, normalized ) {
+	function Float32BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Float32Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Float32Array(array), itemSize, normalized);
 
 	}
 
-	Float32BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Float32BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Float32BufferAttribute.prototype.constructor = Float32BufferAttribute;
 
 
-	function Float64BufferAttribute( array, itemSize, normalized ) {
+	function Float64BufferAttribute(array, itemSize, normalized)
+	{
 
-		BufferAttribute.call( this, new Float64Array( array ), itemSize, normalized );
+		BufferAttribute.call(this, new Float64Array(array), itemSize, normalized);
 
 	}
 
-	Float64BufferAttribute.prototype = Object.create( BufferAttribute.prototype );
+	Float64BufferAttribute.prototype = Object.create(BufferAttribute.prototype);
 	Float64BufferAttribute.prototype.constructor = Float64BufferAttribute;
 
 	/**
@@ -14466,55 +14518,65 @@
 	 * @author mrdoob / http://mrdoob.com/
 	 */
 
-	function WebGLAttributes( gl, capabilities ) {
+	function WebGLAttributes(gl, capabilities)
+	{
 
 		var isWebGL2 = capabilities.isWebGL2;
 
 		var buffers = new WeakMap();
 
-		function createBuffer( attribute, bufferType ) {
+		function createBuffer(attribute, bufferType)
+		{
 
 			var array = attribute.array;
 			var usage = attribute.usage;
 
 			var buffer = gl.createBuffer();
 
-			gl.bindBuffer( bufferType, buffer );
-			gl.bufferData( bufferType, array, usage );
+			gl.bindBuffer(bufferType, buffer);
+			gl.bufferData(bufferType, array, usage);
 
 			attribute.onUploadCallback();
 
 			var type = 5126;
 
-			if ( array instanceof Float32Array ) {
+			if (array instanceof Float32Array)
+			{
 
 				type = 5126;
 
-			} else if ( array instanceof Float64Array ) {
+			} else if (array instanceof Float64Array)
+			{
 
-				console.warn( 'THREE.WebGLAttributes: Unsupported data buffer format: Float64Array.' );
+				console.warn('THREE.WebGLAttributes: Unsupported data buffer format: Float64Array.');
 
-			} else if ( array instanceof Uint16Array ) {
+			} else if (array instanceof Uint16Array)
+			{
 
 				type = 5123;
 
-			} else if ( array instanceof Int16Array ) {
+			} else if (array instanceof Int16Array)
+			{
 
 				type = 5122;
 
-			} else if ( array instanceof Uint32Array ) {
+			} else if (array instanceof Uint32Array)
+			{
 
 				type = 5125;
 
-			} else if ( array instanceof Int32Array ) {
+			} else if (array instanceof Int32Array)
+			{
 
 				type = 5124;
 
-			} else if ( array instanceof Int8Array ) {
+			} else if (array instanceof Int8Array)
+			{
 
 				type = 5120;
 
-			} else if ( array instanceof Uint8Array ) {
+			} else if (array instanceof Uint8Array)
+			{
 
 				type = 5121;
 
@@ -14529,34 +14591,42 @@
 
 		}
 
-		function updateBuffer( buffer, attribute, bufferType ) {
+		function updateBuffer(buffer, attribute, bufferType)
+		{
 
 			var array = attribute.array;
-			var updateRange = attribute.updateRange;
+			var updateRanges = attribute.updateRanges;
 
-			gl.bindBuffer( bufferType, buffer );
+			gl.bindBuffer(bufferType, buffer);
 
-			if ( updateRange.count === - 1 ) {
+			if (updateRanges.size === 0)
+			{
 
 				// Not using update ranges
 
-				gl.bufferSubData( bufferType, 0, array );
+				gl.bufferSubData(bufferType, 0, array);
 
-			} else {
+			} else
+			{
 
-				if ( isWebGL2 ) {
+				updateRanges.forEach((count, offset) =>
+				{
+					if (isWebGL2)
+					{
 
-					gl.bufferSubData( bufferType, updateRange.offset * array.BYTES_PER_ELEMENT,
-						array, updateRange.offset, updateRange.count );
+						gl.bufferSubData(bufferType, offset * array.BYTES_PER_ELEMENT,
+							array, offset, count);
 
-				} else {
+					} else
+					{
 
-					gl.bufferSubData( bufferType, updateRange.offset * array.BYTES_PER_ELEMENT,
-						array.subarray( updateRange.offset, updateRange.offset + updateRange.count ) );
+						gl.bufferSubData(bufferType, offset * array.BYTES_PER_ELEMENT,
+							array.subarray(offset, offset + count));
 
-				}
+					}
+				});
 
-				updateRange.count = - 1; // reset range
+				updateRanges.clear();
 
 			}
 
@@ -14564,43 +14634,49 @@
 
 		//
 
-		function get( attribute ) {
+		function get(attribute)
+		{
 
-			if ( attribute.isInterleavedBufferAttribute ) { attribute = attribute.data; }
+			if (attribute.isInterleavedBufferAttribute) { attribute = attribute.data; }
 
-			return buffers.get( attribute );
+			return buffers.get(attribute);
 
 		}
 
-		function remove( attribute ) {
+		function remove(attribute)
+		{
 
-			if ( attribute.isInterleavedBufferAttribute ) { attribute = attribute.data; }
+			if (attribute.isInterleavedBufferAttribute) { attribute = attribute.data; }
 
-			var data = buffers.get( attribute );
+			var data = buffers.get(attribute);
 
-			if ( data ) {
+			if (data)
+			{
 
-				gl.deleteBuffer( data.buffer );
+				gl.deleteBuffer(data.buffer);
 
-				buffers.delete( attribute );
+				buffers.delete(attribute);
 
 			}
 
 		}
 
-		function update( attribute, bufferType ) {
+		function update(attribute, bufferType)
+		{
 
-			if ( attribute.isInterleavedBufferAttribute ) { attribute = attribute.data; }
+			if (attribute.isInterleavedBufferAttribute) { attribute = attribute.data; }
 
-			var data = buffers.get( attribute );
+			var data = buffers.get(attribute);
 
-			if ( data === undefined ) {
+			if (data === undefined)
+			{
 
-				buffers.set( attribute, createBuffer( attribute, bufferType ) );
+				buffers.set(attribute, createBuffer(attribute, bufferType));
 
-			} else if ( data.version < attribute.version ) {
+			} else if (data.version < attribute.version)
+			{
 
-				updateBuffer( data.buffer, attribute, bufferType );
+				updateBuffer(data.buffer, attribute, bufferType);
 
 				data.version = attribute.version;
 
