@@ -5,24 +5,24 @@
 function WebGLAttributes(gl, capabilities)
 {
 
-	var isWebGL2 = capabilities.isWebGL2;
+	const isWebGL2 = capabilities.isWebGL2;
 
-	var buffers = new WeakMap();
+	const buffers = new WeakMap();
 
 	function createBuffer(attribute, bufferType)
 	{
 
-		var array = attribute.array;
-		var usage = attribute.usage;
+		const array = attribute.array;
+		const usage = attribute.usage;
 
-		var buffer = gl.createBuffer();
+		const buffer = gl.createBuffer();
 
 		gl.bindBuffer(bufferType, buffer);
 		gl.bufferData(bufferType, array, usage);
 
 		attribute.onUploadCallback();
 
-		var type = gl.FLOAT;
+		let type = gl.FLOAT;
 
 		if (array instanceof Float32Array)
 		{
@@ -78,8 +78,13 @@ function WebGLAttributes(gl, capabilities)
 	function updateBuffer(buffer, attribute, bufferType)
 	{
 
+<<<<<<< HEAD
 		var array = attribute.array;
 		var updateRanges = attribute.updateRanges;
+=======
+		const array = attribute.array;
+		const updateRange = attribute.updateRange;
+>>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		gl.bindBuffer(bufferType, buffer);
 
@@ -132,7 +137,11 @@ function WebGLAttributes(gl, capabilities)
 
 		if (attribute.isInterleavedBufferAttribute) attribute = attribute.data;
 
+<<<<<<< HEAD
 		var data = buffers.get(attribute);
+=======
+		const data = buffers.get( attribute );
+>>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		if (data)
 		{
@@ -150,7 +159,11 @@ function WebGLAttributes(gl, capabilities)
 
 		if (attribute.isInterleavedBufferAttribute) attribute = attribute.data;
 
+<<<<<<< HEAD
 		var data = buffers.get(attribute);
+=======
+		const data = buffers.get( attribute );
+>>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		if (data === undefined)
 		{
