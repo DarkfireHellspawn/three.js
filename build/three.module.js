@@ -11307,7 +11307,7 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 	},
 
-	raycast: function ( raycaster, intersects ) {
+	raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 		var geometry = this.geometry;
 		var material = this.material;
@@ -11382,6 +11382,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 								intersection.face.materialIndex = group.materialIndex;
 								intersects.push( intersection );
 
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
+
 							}
 
 						}
@@ -11405,6 +11411,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 							intersection.faceIndex = Math.floor( i / 3 ); // triangle number in indexed buffer semantics
 							intersects.push( intersection );
+
+							if ( firstHitOnly ) {
+
+								return;
+
+							}
 
 						}
 
@@ -11440,6 +11452,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 								intersection.face.materialIndex = group.materialIndex;
 								intersects.push( intersection );
 
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
+
 							}
 
 						}
@@ -11463,6 +11481,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 							intersection.faceIndex = Math.floor( i / 3 ); // triangle number in non-indexed buffer semantics
 							intersects.push( intersection );
+
+							if ( firstHitOnly ) {
+
+								return;
+
+							}
 
 						}
 
@@ -27468,7 +27492,7 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 	},
 
-	raycast: function ( raycaster, intersects ) {
+	raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 		var geometry = this.geometry;
 		var matrixWorld = this.matrixWorld;
@@ -27539,6 +27563,12 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 					} );
 
+					if ( firstHitOnly ) {
+
+						return;
+
+					}
+
 				}
 
 			} else {
@@ -27570,6 +27600,12 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 						object: this
 
 					} );
+
+					if ( firstHitOnly ) {
+
+						return;
+
+					}
 
 				}
 
@@ -32556,8 +32592,6 @@ function CircleBufferGeometry( radius, segments, thetaStart, thetaLength ) {
 CircleBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
 CircleBufferGeometry.prototype.constructor = CircleBufferGeometry;
 
-
-
 var Geometries = /*#__PURE__*/Object.freeze({
 	__proto__: null,
 	WireframeGeometry: WireframeGeometry,
@@ -33601,8 +33635,6 @@ LineDashedMaterial.prototype.copy = function ( source ) {
 	return this;
 
 };
-
-
 
 var Materials = /*#__PURE__*/Object.freeze({
 	__proto__: null,
@@ -37927,8 +37959,6 @@ SplineCurve.prototype.fromJSON = function ( json ) {
 	return this;
 
 };
-
-
 
 var Curves = /*#__PURE__*/Object.freeze({
 	__proto__: null,
@@ -45458,6 +45488,8 @@ function Raycaster( origin, direction, near, far ) {
 		Sprite: {}
 	};
 
+	this.firstHitOnly = false;
+
 	Object.defineProperties( this.params, {
 		PointCloud: {
 			get: function () {
@@ -45481,7 +45513,20 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 
 	if ( object.layers.test( raycaster.layers ) ) {
 
-		object.raycast( raycaster, intersects );
+		if ( object instanceof Mesh ) {
+
+			object.raycast( raycaster, intersects, this.firstHitOnly );
+
+		} else {
+
+			object.raycast(raycaster, intersects);
+
+		}
+	}
+
+	if ( this.firstHitOnly && intersects.length > 0 ) {
+
+		return;
 
 	}
 
@@ -45492,6 +45537,12 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 		for ( var i = 0, l = children.length; i < l; i ++ ) {
 
 			intersectObject( children[ i ], raycaster, intersects, true );
+
+			if ( this.firstHitOnly && intersects.length > 0 ) {
+
+				return;
+
+			}
 
 		}
 

@@ -70,6 +70,8 @@ export class Raycaster {
 
 	params: RaycasterParameters;
 
+	firstHitOnly: boolean;
+
 	/**
 	 * Updates the ray with a new origin and direction.
 	 * @param origin The origin vector where the ray casts from.

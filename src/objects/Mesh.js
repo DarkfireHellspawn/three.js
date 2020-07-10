@@ -125,7 +125,7 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 	},
 
-	raycast: function ( raycaster, intersects ) {
+	raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 		var geometry = this.geometry;
 		var material = this.material;
@@ -200,6 +200,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 								intersection.face.materialIndex = group.materialIndex;
 								intersects.push( intersection );
 
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
+
 							}
 
 						}
@@ -223,6 +229,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 							intersection.faceIndex = Math.floor( i / 3 ); // triangle number in indexed buffer semantics
 							intersects.push( intersection );
+
+							if ( firstHitOnly ) {
+
+								return;
+
+							}
 
 						}
 
@@ -258,6 +270,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 								intersection.face.materialIndex = group.materialIndex;
 								intersects.push( intersection );
 
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
+
 							}
 
 						}
@@ -281,6 +299,12 @@ Mesh.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 							intersection.faceIndex = Math.floor( i / 3 ); // triangle number in non-indexed buffer semantics
 							intersects.push( intersection );
+
+							if ( firstHitOnly ) {
+
+								return;
+
+							}
 
 						}
 

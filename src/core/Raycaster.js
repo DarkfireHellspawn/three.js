@@ -1,5 +1,6 @@
 import { Ray } from '../math/Ray.js';
 import { Layers } from './Layers.js';
+import { Mesh } from "../objects/Mesh";
 
 /**
  * @author mrdoob / http://mrdoob.com/
@@ -25,6 +26,8 @@ function Raycaster( origin, direction, near, far ) {
 		Sprite: {}
 	};
 
+	this.firstHitOnly = false;
+
 	Object.defineProperties( this.params, {
 		PointCloud: {
 			get: function () {
@@ -48,7 +51,20 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 
 	if ( object.layers.test( raycaster.layers ) ) {
 
-		object.raycast( raycaster, intersects );
+		if ( object instanceof Mesh ) {
+
+			object.raycast( raycaster, intersects, this.firstHitOnly );
+
+		} else {
+
+			object.raycast(raycaster, intersects);
+
+		}
+	}
+
+	if ( this.firstHitOnly && intersects.length > 0 ) {
+
+		return;
 
 	}
 
@@ -59,6 +75,12 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 		for ( var i = 0, l = children.length; i < l; i ++ ) {
 
 			intersectObject( children[ i ], raycaster, intersects, true );
+
+			if ( this.firstHitOnly && intersects.length > 0 ) {
+
+				return;
+
+			}
 
 		}
 

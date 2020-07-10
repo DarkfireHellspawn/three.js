@@ -11313,7 +11313,7 @@
 
 		},
 
-		raycast: function ( raycaster, intersects ) {
+		raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 			var geometry = this.geometry;
 			var material = this.material;
@@ -11388,6 +11388,12 @@
 									intersection.face.materialIndex = group.materialIndex;
 									intersects.push( intersection );
 
+									if ( firstHitOnly ) {
+
+										return;
+
+									}
+
 								}
 
 							}
@@ -11411,6 +11417,12 @@
 
 								intersection.faceIndex = Math.floor( i / 3 ); // triangle number in indexed buffer semantics
 								intersects.push( intersection );
+
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
 
 							}
 
@@ -11446,6 +11458,12 @@
 									intersection.face.materialIndex = group.materialIndex;
 									intersects.push( intersection );
 
+									if ( firstHitOnly ) {
+
+										return;
+
+									}
+
 								}
 
 							}
@@ -11469,6 +11487,12 @@
 
 								intersection.faceIndex = Math.floor( i / 3 ); // triangle number in non-indexed buffer semantics
 								intersects.push( intersection );
+
+								if ( firstHitOnly ) {
+
+									return;
+
+								}
 
 							}
 
@@ -27476,7 +27500,7 @@
 
 		},
 
-		raycast: function ( raycaster, intersects ) {
+		raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 			var geometry = this.geometry;
 			var matrixWorld = this.matrixWorld;
@@ -27547,6 +27571,12 @@
 
 						} );
 
+						if ( firstHitOnly ) {
+
+							return;
+
+						}
+
 					}
 
 				} else {
@@ -27578,6 +27608,12 @@
 							object: this
 
 						} );
+
+						if ( firstHitOnly ) {
+
+							return;
+
+						}
 
 					}
 
@@ -32564,8 +32600,6 @@
 	CircleBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
 	CircleBufferGeometry.prototype.constructor = CircleBufferGeometry;
 
-
-
 	var Geometries = /*#__PURE__*/Object.freeze({
 		__proto__: null,
 		WireframeGeometry: WireframeGeometry,
@@ -33609,8 +33643,6 @@
 		return this;
 
 	};
-
-
 
 	var Materials = /*#__PURE__*/Object.freeze({
 		__proto__: null,
@@ -37935,8 +37967,6 @@
 		return this;
 
 	};
-
-
 
 	var Curves = /*#__PURE__*/Object.freeze({
 		__proto__: null,
@@ -45466,6 +45496,8 @@
 			Sprite: {}
 		};
 
+		this.firstHitOnly = false;
+
 		Object.defineProperties( this.params, {
 			PointCloud: {
 				get: function () {
@@ -45489,7 +45521,20 @@
 
 		if ( object.layers.test( raycaster.layers ) ) {
 
-			object.raycast( raycaster, intersects );
+			if ( object instanceof Mesh ) {
+
+				object.raycast( raycaster, intersects, this.firstHitOnly );
+
+			} else {
+
+				object.raycast(raycaster, intersects);
+
+			}
+		}
+
+		if ( this.firstHitOnly && intersects.length > 0 ) {
+
+			return;
 
 		}
 
@@ -45500,6 +45545,12 @@
 			for ( var i = 0, l = children.length; i < l; i ++ ) {
 
 				intersectObject( children[ i ], raycaster, intersects, true );
+
+				if ( this.firstHitOnly && intersects.length > 0 ) {
+
+					return;
+
+				}
 
 			}
 

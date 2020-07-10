@@ -91,7 +91,7 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 	},
 
-	raycast: function ( raycaster, intersects ) {
+	raycast: function ( raycaster, intersects, firstHitOnly ) {
 
 		var geometry = this.geometry;
 		var matrixWorld = this.matrixWorld;
@@ -162,6 +162,12 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
 					} );
 
+					if ( firstHitOnly ) {
+
+						return;
+
+					}
+
 				}
 
 			} else {
@@ -193,6 +199,12 @@ Line.prototype = Object.assign( Object.create( Object3D.prototype ), {
 						object: this
 
 					} );
+
+					if ( firstHitOnly ) {
+
+						return;
+
+					}
 
 				}
 
