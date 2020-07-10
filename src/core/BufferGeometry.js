@@ -9,7 +9,6 @@ import { Matrix4 } from '../math/Matrix4.js';
 import { Matrix3 } from '../math/Matrix3.js';
 import { MathUtils } from '../math/MathUtils.js';
 import { arrayMax } from '../utils.js';
-import { computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 
 /**
  * @author alteredq / http://alteredqualia.com/
@@ -56,18 +55,6 @@ BufferGeometry.prototype = Object.assign( Object.create( EventDispatcher.prototy
 	constructor: BufferGeometry,
 
 	isBufferGeometry: true,
-
-	computeBoundsTree: function ( options ) {
-
-		computeBoundsTree( options );
-
-	},
-
-	disposeBoundsTree: function () {
-
-		disposeBoundsTree();
-
-	},
 
 	getIndex: function () {
 

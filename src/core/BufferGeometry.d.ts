@@ -48,9 +48,6 @@ export class BufferGeometry extends EventDispatcher {
 	userData: {[key: string]: any};
 	readonly isBufferGeometry: true;
 
-	computeBoundsTree( options: any ): void;
-	disposeBoundsTree(): void;
-
 	getIndex(): BufferAttribute | null;
 	setIndex( index: BufferAttribute | number[] | null ): void;
 

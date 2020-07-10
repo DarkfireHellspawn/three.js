@@ -1,8 +1,8 @@
 (function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('three')) :
-	typeof define === 'function' && define.amd ? define(['exports', 'three'], factory) :
-	(global = global || self, factory(global.THREE = {}, global.THREE));
-}(this, (function (exports, THREE) { 'use strict';
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+	typeof define === 'function' && define.amd ? define(['exports'], factory) :
+	(global = global || self, factory(global.THREE = {}));
+}(this, (function (exports) { 'use strict';
 
 	// Polyfills
 
@@ -9970,3282 +9970,6 @@
 
 	}
 
-	// Split strategy constants
-	var CENTER = 0;
-	var AVERAGE = 1;
-	var SAH = 2;
-
-	var MeshBVHNode = function MeshBVHNode() {
-
-		// internal nodes have boundingData, left, right, and splitAxis
-		// leaf nodes have offset and count (referring to primitives in the mesh geometry)
-
-	};
-
-	// Returns a Float32Array representing the bounds data for box.
-	function boxToArray( bx ) {
-
-		var arr = new Float32Array( 6 );
-
-		arr[ 0 ] = bx.min.x;
-		arr[ 1 ] = bx.min.y;
-		arr[ 2 ] = bx.min.z;
-
-		arr[ 3 ] = bx.max.x;
-		arr[ 4 ] = bx.max.y;
-		arr[ 5 ] = bx.max.z;
-
-		return arr;
-
-	}
-
-	function arrayToBox( arr, target ) {
-
-		target.min.x = arr[ 0 ];
-		target.min.y = arr[ 1 ];
-		target.min.z = arr[ 2 ];
-
-		target.max.x = arr[ 3 ];
-		target.max.y = arr[ 4 ];
-		target.max.z = arr[ 5 ];
-
-		return target;
-
-	}
-
-	function getLongestEdgeIndex( bounds ) {
-
-		var splitDimIdx = - 1;
-		var splitDist = - Infinity;
-
-		for ( var i = 0; i < 3; i ++ ) {
-
-			var dist = bounds[ i + 3 ] - bounds[ i ];
-			if ( dist > splitDist ) {
-
-				splitDist = dist;
-				splitDimIdx = i;
-
-			}
-
-		}
-
-		return splitDimIdx;
-
-	}
-
-	var xyzFields = [ 'x', 'y', 'z' ];
-	var boxTemp = new THREE.Box3();
-
-	function ensureIndex( geo ) {
-
-		if ( ! geo.index ) {
-
-			var vertexCount = geo.attributes.position.count;
-			var index = new ( vertexCount > 65535 ? Uint32Array : Uint16Array )( vertexCount );
-			geo.setIndex( new THREE.BufferAttribute( index, 1 ) );
-
-			for ( var i = 0; i < vertexCount; i ++ ) {
-
-				index[ i ] = i;
-
-			}
-
-		}
-
-	}
-
-	// Computes the set of { offset, count } ranges which need independent BVH roots. Each
-	// region in the geometry index that belongs to a different set of material groups requires
-	// a separate BVH root, so that triangles indices belonging to one group never get swapped
-	// with triangle indices belongs to another group. For example, if the groups were like this:
-	//
-	// [-------------------------------------------------------------]
-	// |__________________|
-	//   g0 = [0, 20]  |______________________||_____________________|
-	//                      g1 = [16, 40]           g2 = [41, 60]
-	//
-	// we would need four BVH roots: [0, 15], [16, 20], [21, 40], [41, 60].
-	function getRootIndexRanges( geo ) {
-
-		if ( ! geo.groups || ! geo.groups.length ) {
-
-			return [ { offset: 0, count: geo.index.count / 3 } ];
-
-		}
-
-		var ranges = [];
-		var rangeBoundaries = new Set();
-		for ( var group of geo.groups ) {
-
-			rangeBoundaries.add( group.start );
-			rangeBoundaries.add( group.start + group.count );
-
-		}
-
-		// note that if you don't pass in a comparator, it sorts them lexicographically as strings :-(
-		var sortedBoundaries = Array.from( rangeBoundaries.values() ).sort( ( a, b ) => a - b );
-		for ( var i = 0; i < sortedBoundaries.length - 1; i ++ ) {
-
-			var start = sortedBoundaries[ i ], end = sortedBoundaries[ i + 1 ];
-			ranges.push( { offset: ( start / 3 ), count: ( end - start ) / 3 } );
-
-		}
-		return ranges;
-
-	}
-
-	// computes the union of the bounds of all of the given triangles and puts the resulting box in target. If
-	// centroidTarget is provided then a bounding box is computed for the centroids of the triangles, as well.
-	// These are computed together to avoid redundant accesses to bounds array.
-	function getBounds( triangleBounds, offset, count, target, centroidTarget ) {
-		if ( centroidTarget === void 0 ) centroidTarget = null;
-
-
-		var minx = Infinity;
-		var miny = Infinity;
-		var minz = Infinity;
-		var maxx = - Infinity;
-		var maxy = - Infinity;
-		var maxz = - Infinity;
-
-		var cminx = Infinity;
-		var cminy = Infinity;
-		var cminz = Infinity;
-		var cmaxx = - Infinity;
-		var cmaxy = - Infinity;
-		var cmaxz = - Infinity;
-
-		var includeCentroid = centroidTarget !== null;
-		for ( var i = offset * 6, end = ( offset + count ) * 6; i < end; i += 6 ) {
-
-			var cx = triangleBounds[ i + 0 ];
-			var hx = triangleBounds[ i + 1 ];
-			var lx = cx - hx;
-			var rx = cx + hx;
-			if ( lx < minx ) { minx = lx; }
-			if ( rx > maxx ) { maxx = rx; }
-			if ( includeCentroid && cx < cminx ) { cminx = cx; }
-			if ( includeCentroid && cx > cmaxx ) { cmaxx = cx; }
-
-			var cy = triangleBounds[ i + 2 ];
-			var hy = triangleBounds[ i + 3 ];
-			var ly = cy - hy;
-			var ry = cy + hy;
-			if ( ly < miny ) { miny = ly; }
-			if ( ry > maxy ) { maxy = ry; }
-			if ( includeCentroid && cy < cminy ) { cminy = cy; }
-			if ( includeCentroid && cy > cmaxy ) { cmaxy = cy; }
-
-			var cz = triangleBounds[ i + 4 ];
-			var hz = triangleBounds[ i + 5 ];
-			var lz = cz - hz;
-			var rz = cz + hz;
-			if ( lz < minz ) { minz = lz; }
-			if ( rz > maxz ) { maxz = rz; }
-			if ( includeCentroid && cz < cminz ) { cminz = cz; }
-			if ( includeCentroid && cz > cmaxz ) { cmaxz = cz; }
-
-		}
-
-		target[ 0 ] = minx;
-		target[ 1 ] = miny;
-		target[ 2 ] = minz;
-
-		target[ 3 ] = maxx;
-		target[ 4 ] = maxy;
-		target[ 5 ] = maxz;
-
-		if ( includeCentroid ) {
-
-			centroidTarget[ 0 ] = cminx;
-			centroidTarget[ 1 ] = cminy;
-			centroidTarget[ 2 ] = cminz;
-
-			centroidTarget[ 3 ] = cmaxx;
-			centroidTarget[ 4 ] = cmaxy;
-			centroidTarget[ 5 ] = cmaxz;
-
-		}
-
-	}
-
-	// A stand alone function for retrieving the centroid bounds.
-	function getCentroidBounds( triangleBounds, offset, count, centroidTarget ) {
-
-		var cminx = Infinity;
-		var cminy = Infinity;
-		var cminz = Infinity;
-		var cmaxx = - Infinity;
-		var cmaxy = - Infinity;
-		var cmaxz = - Infinity;
-
-		for ( var i = offset * 6, end = ( offset + count ) * 6; i < end; i += 6 ) {
-
-			var cx = triangleBounds[ i + 0 ];
-			if ( cx < cminx ) { cminx = cx; }
-			if ( cx > cmaxx ) { cmaxx = cx; }
-
-			var cy = triangleBounds[ i + 2 ];
-			if ( cy < cminy ) { cminy = cy; }
-			if ( cy > cmaxy ) { cmaxy = cy; }
-
-			var cz = triangleBounds[ i + 4 ];
-			if ( cz < cminz ) { cminz = cz; }
-			if ( cz > cmaxz ) { cmaxz = cz; }
-
-		}
-
-		centroidTarget[ 0 ] = cminx;
-		centroidTarget[ 1 ] = cminy;
-		centroidTarget[ 2 ] = cminz;
-
-		centroidTarget[ 3 ] = cmaxx;
-		centroidTarget[ 4 ] = cmaxy;
-		centroidTarget[ 5 ] = cmaxz;
-
-	}
-
-
-	// reorders `tris` such that for `count` elements after `offset`, elements on the left side of the split
-	// will be on the left and elements on the right side of the split will be on the right. returns the index
-	// of the first element on the right side, or offset + count if there are no elements on the right side.
-	function partition( index, triangleBounds, sahPlanes, offset, count, split ) {
-
-		var left = offset;
-		var right = offset + count - 1;
-		var pos = split.pos;
-		var axisOffset = split.axis * 2;
-
-		// hoare partitioning, see e.g. https://en.wikipedia.org/wiki/Quicksort#Hoare_partition_scheme
-		while ( true ) {
-
-			while ( left <= right && triangleBounds[ left * 6 + axisOffset ] < pos ) {
-
-				left ++;
-
-			}
-
-			while ( left <= right && triangleBounds[ right * 6 + axisOffset ] >= pos ) {
-
-				right --;
-
-			}
-
-			if ( left < right ) {
-
-				// we need to swap all of the information associated with the triangles at index
-				// left and right; that's the verts in the geometry index, the bounds,
-				// and perhaps the SAH planes
-
-				for ( var i = 0; i < 3; i ++ ) {
-
-					var t0 = index[ left * 3 + i ];
-					index[ left * 3 + i ] = index[ right * 3 + i ];
-					index[ right * 3 + i ] = t0;
-
-					var t1 = triangleBounds[ left * 6 + i * 2 + 0 ];
-					triangleBounds[ left * 6 + i * 2 + 0 ] = triangleBounds[ right * 6 + i * 2 + 0 ];
-					triangleBounds[ right * 6 + i * 2 + 0 ] = t1;
-
-					var t2 = triangleBounds[ left * 6 + i * 2 + 1 ];
-					triangleBounds[ left * 6 + i * 2 + 1 ] = triangleBounds[ right * 6 + i * 2 + 1 ];
-					triangleBounds[ right * 6 + i * 2 + 1 ] = t2;
-
-				}
-
-				if ( sahPlanes ) {
-
-					for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-						var t = sahPlanes[ i$1 ][ left ];
-						sahPlanes[ i$1 ][ left ] = sahPlanes[ i$1 ][ right ];
-						sahPlanes[ i$1 ][ right ] = t;
-
-					}
-
-				}
-
-				left ++;
-				right --;
-
-			} else {
-
-				return left;
-
-			}
-
-		}
-
-	}
-
-	function getOptimalSplit( nodeBoundingData, centroidBoundingData, triangleBounds, sahPlanes, offset, count, strategy ) {
-
-		var axis = - 1;
-		var pos = 0;
-
-		// Center
-		if ( strategy === CENTER ) {
-
-			axis = getLongestEdgeIndex( centroidBoundingData );
-			if ( axis !== - 1 ) {
-
-				pos = ( centroidBoundingData[ axis ] + centroidBoundingData[ axis + 3 ] ) / 2;
-
-			}
-
-		} else if ( strategy === AVERAGE ) {
-
-			axis = getLongestEdgeIndex( nodeBoundingData );
-			if ( axis !== - 1 ) {
-
-				pos = getAverage( triangleBounds, offset, count, axis );
-
-			}
-
-		} else if ( strategy === SAH ) {
-
-			// Surface Area Heuristic
-			// In order to make this code more terse, the x, y, and z
-			// variables of various structures have been stuffed into
-			// 0, 1, and 2 array indices so they can be easily computed
-			// and accessed within array iteration
-
-			// Cost values defineed for operations. We're using bounds for traversal, so
-			// the cost of traversing one more layer is more than intersecting a triangle.
-			var TRAVERSAL_COST = 3;
-			var INTERSECTION_COST = 1;
-			var bb = arrayToBox( nodeBoundingData, boxTemp );
-
-			// Define the width, height, and depth of the bounds as a box
-			var dim = [
-				bb.max.x - bb.min.x,
-				bb.max.y - bb.min.y,
-				bb.max.z - bb.min.z
-			];
-			var sa = 2 * ( dim[ 0 ] * dim[ 1 ] + dim[ 0 ] * dim[ 2 ] + dim[ 1 ] * dim[ 2 ] );
-
-			// Get the precalculated planes based for the triangles we're
-			// testing here
-			var filteredLists = [[], [], []];
-			for ( var i = offset, end = offset + count; i < end; i ++ ) {
-
-				for ( var v = 0; v < 3; v ++ ) {
-
-					filteredLists[ v ].push( sahPlanes[ v ][ i ] );
-
-				}
-
-			}
-			filteredLists.forEach( planes => planes.sort( ( a, b ) => a.p - b.p ) );
-
-			// this bounds surface area, left bound SA, left triangles, right bound SA, right triangles
-			var getCost = ( sa, sal, nl, sar, nr ) =>
-				  TRAVERSAL_COST + INTERSECTION_COST * ( ( sal / sa ) * nl + ( sar / sa ) * nr );
-
-			// the cost of _not_ splitting into smaller bounds
-			var noSplitCost = INTERSECTION_COST * count;
-
-			axis = - 1;
-			var bestCost = noSplitCost;
-			for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-				// o1 and o2 represent the _other_ two axes in the
-				// the space. So if we're checking the x (0) dimension,
-				// then o1 and o2 would be y and z (1 and 2)
-				var o1 = ( i$1 + 1 ) % 3;
-				var o2 = ( i$1 + 2 ) % 3;
-
-				var bmin = bb.min[ xyzFields[ i$1 ] ];
-				var bmax = bb.max[ xyzFields[ i$1 ] ];
-				var planes = filteredLists[ i$1 ];
-
-				// The number of left and right triangles on either side
-				// given the current split
-				var nl = 0;
-				var nr = count;
-				for ( var p = 0; p < planes.length; p ++ ) {
-
-					var pinfo = planes[ p ];
-
-					// As the plane moves, we have to increment or decrement the
-					// number of triangles on either side of the plane
-					nl ++;
-					nr --;
-
-					// the distance from the plane to the edge of the broader bounds
-					var ldim = pinfo.p - bmin;
-					var rdim = bmax - pinfo.p;
-
-					// same for the other two dimensions
-					var ldimo1 = dim[ o1 ], rdimo1 = dim[ o1 ];
-					var ldimo2 = dim[ o2 ], rdimo2 = dim[ o2 ];
-
-					/*
-					// compute the other bounding planes for the box
-					// if only the current triangles are considered to
-					// be in the box
-					// This is really slow and probably not really worth it
-					const o1planes = sahPlanes[o1];
-					const o2planes = sahPlanes[o2];
-					let lmin = Infinity, lmax = -Infinity;
-					let rmin = Infinity, rmax = -Infinity;
-					planes.forEach((p, i) => {
-					const tri2 = p.tri * 2;
-					const inf1 = o1planes[tri2 + 0];
-					const inf2 = o1planes[tri2 + 1];
-					if (i <= nl) {
-					lmin = Math.min(inf1.p, inf2.p, lmin);
-					lmax = Math.max(inf1.p, inf2.p, lmax);
-					}
-					if (i >= nr) {
-					rmin = Math.min(inf1.p, inf2.p, rmin);
-					rmax = Math.max(inf1.p, inf2.p, rmax);
-					}
-					})
-					ldimo1 = Math.min(lmax - lmin, ldimo1);
-					rdimo1 = Math.min(rmax - rmin, rdimo1);
-
-					planes.forEach((p, i) => {
-					const tri2 = p.tri * 2;
-					const inf1 = o2planes[tri2 + 0];
-					const inf2 = o2planes[tri2 + 1];
-					if (i <= nl) {
-					lmin = Math.min(inf1.p, inf2.p, lmin);
-					lmax = Math.max(inf1.p, inf2.p, lmax);
-					}
-					if (i >= nr) {
-					rmin = Math.min(inf1.p, inf2.p, rmin);
-					rmax = Math.max(inf1.p, inf2.p, rmax);
-					}
-					})
-					ldimo2 = Math.min(lmax - lmin, ldimo2);
-					rdimo2 = Math.min(rmax - rmin, rdimo2);
-					*/
-
-					// surface areas and cost
-					var sal = 2 * ( ldimo1 * ldimo2 + ldimo1 * ldim + ldimo2 * ldim );
-					var sar = 2 * ( rdimo1 * rdimo2 + rdimo1 * rdim + rdimo2 * rdim );
-					var cost = getCost( sa, sal, nl, sar, nr );
-
-					if ( cost < bestCost ) {
-
-						axis = i$1;
-						pos = pinfo.p;
-						bestCost = cost;
-
-					}
-
-				}
-
-			}
-
-		}
-
-		return { axis: axis, pos: pos };
-
-	}
-
-	// returns the average coordinate on the specified axis of the all the provided triangles
-	function getAverage( triangleBounds, offset, count, axis ) {
-
-		var avg = 0;
-		for ( var i = offset, end = offset + count; i < end; i ++ ) {
-
-			avg += triangleBounds[ i * 6 + axis * 2 ];
-
-		}
-
-		return avg / count;
-
-	}
-
-	function computeSAHPlanes( triangleBounds ) {
-
-		var triCount = triangleBounds.length / 6;
-		var sahPlanes = [ new Array( triCount ), new Array( triCount ), new Array( triCount ) ];
-		for ( var tri = 0; tri < triCount; tri ++ ) {
-
-			for ( var el = 0; el < 3; el ++ ) {
-
-				sahPlanes[ el ][ tri ] = { p: triangleBounds[ tri * 6 + el * 2 ], tri: tri };
-
-			}
-
-		}
-
-		return sahPlanes;
-
-	}
-
-	// precomputes the bounding box for each triangle; required for quickly calculating tree splits.
-	// result is an array of size tris.length * 6 where triangle i maps to a
-	// [x_center, x_delta, y_center, y_delta, z_center, z_delta] tuple starting at index i * 6,
-	// representing the center and half-extent in each dimension of triangle i
-	function computeTriangleBounds( geo ) {
-
-		var verts = geo.attributes.position.array;
-		var index = geo.index.array;
-		var triCount = index.length / 3;
-		var triangleBounds = new Float32Array( triCount * 6 );
-
-		for ( var tri = 0; tri < triCount; tri ++ ) {
-
-			var tri3 = tri * 3;
-			var tri6 = tri * 6;
-			var ai = index[ tri3 + 0 ] * 3;
-			var bi = index[ tri3 + 1 ] * 3;
-			var ci = index[ tri3 + 2 ] * 3;
-
-			for ( var el = 0; el < 3; el ++ ) {
-
-				var a = verts[ ai + el ];
-				var b = verts[ bi + el ];
-				var c = verts[ ci + el ];
-
-				var min = a;
-				if ( b < min ) { min = b; }
-				if ( c < min ) { min = c; }
-
-				var max = a;
-				if ( b > max ) { max = b; }
-				if ( c > max ) { max = c; }
-
-				var halfExtents = ( max - min ) / 2;
-				var el2 = el * 2;
-				triangleBounds[ tri6 + el2 + 0 ] = min + halfExtents;
-				triangleBounds[ tri6 + el2 + 1 ] = halfExtents;
-
-			}
-
-		}
-
-		return triangleBounds;
-
-	}
-
-	function buildTree( geo, options ) {
-
-		// either recursively splits the given node, creating left and right subtrees for it, or makes it a leaf node,
-		// recording the offset and count of its triangles and writing them into the reordered geometry index.
-		function splitNode( node, offset, count, centroidBoundingData, depth ) {
-			if ( centroidBoundingData === void 0 ) centroidBoundingData = null;
-			if ( depth === void 0 ) depth = 0;
-
-
-			if ( ! reachedMaxDepth && depth >= maxDepth ) {
-
-				reachedMaxDepth = true;
-				if ( verbose ) {
-
-					console.warn( ("MeshBVH: Max depth of " + maxDepth + " reached when generating BVH. Consider increasing maxDepth.") );
-					console.warn( this, geo );
-
-				}
-
-			}
-
-			// early out if we've met our capacity
-			if ( count <= maxLeafTris || depth >= maxDepth ) {
-
-				node.offset = offset;
-				node.count = count;
-				return node;
-
-			}
-
-			// Find where to split the volume
-			var split = getOptimalSplit( node.boundingData, centroidBoundingData, triangleBounds, sahPlanes, offset, count, strategy );
-			if ( split.axis === - 1 ) {
-
-				node.offset = offset;
-				node.count = count;
-				return node;
-
-			}
-
-			var splitOffset = partition( indexArray, triangleBounds, sahPlanes, offset, count, split );
-
-			// create the two new child nodes
-			if ( splitOffset === offset || splitOffset === offset + count ) {
-
-				node.offset = offset;
-				node.count = count;
-
-			} else {
-
-				node.splitAxis = split.axis;
-
-				// create the left child and compute its bounding box
-				var left = new MeshBVHNode();
-				var lstart = offset;
-				var lcount = splitOffset - offset;
-				node.left = left;
-				left.boundingData = new Float32Array( 6 );
-
-				if ( lazyGeneration ) {
-
-					getBounds( triangleBounds, lstart, lcount, left.boundingData );
-					left.continueGeneration = function () {
-
-						delete this.continueGeneration;
-						getCentroidBounds( triangleBounds, lstart, lcount, cacheCentroidBoundingData );
-						splitNode( left, lstart, lcount, cacheCentroidBoundingData, depth + 1 );
-
-					};
-
-				} else {
-
-					getBounds( triangleBounds, lstart, lcount, left.boundingData, cacheCentroidBoundingData );
-					splitNode( left, lstart, lcount, cacheCentroidBoundingData, depth + 1 );
-
-				}
-
-				// repeat for right
-				var right = new MeshBVHNode();
-				var rstart = splitOffset;
-				var rcount = count - lcount;
-				node.right = right;
-				right.boundingData = new Float32Array( 6 );
-
-				if ( lazyGeneration ) {
-
-					getBounds( triangleBounds, rstart, rcount, right.boundingData );
-					right.continueGeneration = function () {
-
-						delete this.continueGeneration;
-						getCentroidBounds( triangleBounds, rstart, rcount, cacheCentroidBoundingData );
-						splitNode( right, rstart, rcount, cacheCentroidBoundingData, depth + 1 );
-
-					};
-
-				} else {
-
-					getBounds( triangleBounds, rstart, rcount, right.boundingData, cacheCentroidBoundingData );
-					splitNode( right, rstart, rcount, cacheCentroidBoundingData, depth + 1 );
-
-				}
-
-			}
-
-			return node;
-
-		}
-
-		ensureIndex( geo );
-
-		var cacheCentroidBoundingData = new Float32Array( 6 );
-		var triangleBounds = computeTriangleBounds( geo );
-		var sahPlanes = options.strategy === SAH ? computeSAHPlanes( triangleBounds ) : null;
-		var indexArray = geo.index.array;
-		var maxDepth = options.maxDepth;
-		var verbose = options.verbose;
-		var maxLeafTris = options.maxLeafTris;
-		var strategy = options.strategy;
-		var lazyGeneration = options.lazyGeneration;
-		var reachedMaxDepth = false;
-
-		var roots = [];
-		var ranges = getRootIndexRanges( geo );
-
-		if ( ranges.length === 1 ) {
-
-			var root = new MeshBVHNode();
-			var range = ranges[ 0 ];
-
-			if ( geo.boundingBox != null ) {
-
-				root.boundingData = boxToArray( geo.boundingBox );
-				getCentroidBounds( triangleBounds, range.offset, range.count, cacheCentroidBoundingData );
-
-			} else {
-
-				root.boundingData = new Float32Array( 6 );
-				getBounds( triangleBounds, range.offset, range.count, root.boundingData, cacheCentroidBoundingData );
-
-			}
-
-			splitNode( root, range.offset, range.count, cacheCentroidBoundingData );
-			roots.push( root );
-
-		} else {
-
-			for ( var range$1 of ranges ) {
-
-				var root$1 = new MeshBVHNode();
-				root$1.boundingData = new Float32Array( 6 );
-				getBounds( triangleBounds, range$1.offset, range$1.count, root$1.boundingData, cacheCentroidBoundingData );
-
-				splitNode( root$1, range$1.offset, range$1.count, cacheCentroidBoundingData );
-				roots.push( root$1 );
-
-			}
-
-		}
-
-		// if the geometry doesn't have a bounding box, then let's politely populate it using
-		// the work we did to determine the BVH root bounds
-		if ( geo.boundingBox == null ) {
-
-			var rootBox = new THREE.Box3();
-			geo.boundingBox = new THREE.Box3();
-
-			for ( var root$2 of roots ) {
-
-				geo.boundingBox.union( arrayToBox( root$2.boundingData, rootBox ) );
-
-			}
-
-		}
-
-		return roots;
-
-	}
-
-	var SeparatingAxisBounds = function SeparatingAxisBounds() {
-
-		this.min = Infinity;
-		this.max = - Infinity;
-
-	};
-
-	SeparatingAxisBounds.prototype.setFromPointsField = function setFromPointsField ( points, field ) {
-
-		var min = Infinity;
-		var max = - Infinity;
-		for ( var i = 0, l = points.length; i < l; i ++ ) {
-
-			var p = points[ i ];
-			var val = p[ field ];
-			min = Math.min( val, min );
-			max = Math.max( val, max );
-
-		}
-
-		this.min = min;
-		this.max = max;
-
-
-	};
-
-	SeparatingAxisBounds.prototype.setFromPoints = function setFromPoints ( axis, points ) {
-
-		var min = Infinity;
-		var max = - Infinity;
-		for ( var i = 0, l = points.length; i < l; i ++ ) {
-
-			var p = points[ i ];
-			var val = axis.dot( p );
-			min = Math.min( val, min );
-			max = Math.max( val, max );
-
-		}
-
-		this.min = min;
-		this.max = max;
-
-	};
-
-	SeparatingAxisBounds.prototype.isSeparated = function isSeparated ( other ) {
-
-		return this.min > other.max || other.min > this.max;
-
-	};
-
-	SeparatingAxisBounds.prototype.setFromBox = ( function () {
-
-		var p = new THREE.Vector3();
-		return function setFromBox( axis, box ) {
-
-			var boxMin = box.min;
-			var boxMax = box.max;
-			var min = Infinity;
-			var max = - Infinity;
-			for ( var x = 0; x <= 1; x ++ ) {
-
-				for ( var y = 0; y <= 1; y ++ ) {
-
-					for ( var z = 0; z <= 1; z ++ ) {
-
-						p.x = boxMin.x * x + boxMax.x * ( 1 - x );
-						p.y = boxMin.y * y + boxMax.y * ( 1 - y );
-						p.z = boxMin.z * z + boxMax.z * ( 1 - z );
-
-						var val = axis.dot( p );
-						min = Math.min( val, min );
-						max = Math.max( val, max );
-
-					}
-
-				}
-
-			}
-
-			this.min = min;
-			this.max = max;
-
-		};
-
-	} )();
-
-	var closestPointLineToLine = ( function () {
-
-		// https://github.com/juj/MathGeoLib/blob/master/src/Geometry/Line.cpp#L56
-		var dir1 = new THREE.Vector3();
-		var dir2 = new THREE.Vector3();
-		var v02 = new THREE.Vector3();
-		return function closestPointLineToLine( l1, l2, result ) {
-
-			var v0 = l1.start;
-			var v10 = dir1;
-			var v2 = l2.start;
-			var v32 = dir2;
-
-			v02.subVectors( v0, v2 );
-			dir1.subVectors( l1.end, l2.start );
-			dir2.subVectors( l2.end, l2.start );
-
-			// float d0232 = v02.Dot(v32);
-			var d0232 = v02.dot( v32 );
-
-			// float d3210 = v32.Dot(v10);
-			var d3210 = v32.dot( v10 );
-
-			// float d3232 = v32.Dot(v32);
-			var d3232 = v32.dot( v32 );
-
-			// float d0210 = v02.Dot(v10);
-			var d0210 = v02.dot( v10 );
-
-			// float d1010 = v10.Dot(v10);
-			var d1010 = v10.dot( v10 );
-
-			// float denom = d1010*d3232 - d3210*d3210;
-			var denom = d1010 * d3232 - d3210 * d3210;
-
-			var d, d2;
-			if ( denom !== 0 ) {
-
-				d = ( d0232 * d3210 - d0210 * d3232 ) / denom;
-
-			} else {
-
-				d = 0;
-
-			}
-
-			d2 = ( d0232 + d * d3210 ) / d3232;
-
-			result.x = d;
-			result.y = d2;
-
-		};
-
-	} )();
-
-	var closestPointsSegmentToSegment = ( function () {
-
-		// https://github.com/juj/MathGeoLib/blob/master/src/Geometry/LineSegment.cpp#L187
-		var paramResult = new THREE.Vector2();
-		var temp1 = new THREE.Vector3();
-		var temp2 = new THREE.Vector3();
-		return function closestPointsSegmentToSegment( l1, l2, target1, target2 ) {
-
-			closestPointLineToLine( l1, l2, paramResult );
-
-			var d = paramResult.x;
-			var d2 = paramResult.y;
-			if ( d >= 0 && d <= 1 && d2 >= 0 && d2 <= 1 ) {
-
-				l1.at( d, target1 );
-				l2.at( d2, target2 );
-
-				return;
-
-			} else if ( d >= 0 && d <= 1 ) {
-
-				// Only d2 is out of bounds.
-				if ( d2 < 0 ) {
-
-					l2.at( 0, target2 );
-
-				} else {
-
-					l2.at( 1, target2 );
-
-				}
-
-				l1.closestPointToPoint( target2, true, target1 );
-				return;
-
-			} else if ( d2 >= 0 && d2 <= 1 ) {
-
-				// Only d is out of bounds.
-				if ( d < 0 ) {
-
-					l1.at( 0, target1 );
-
-				} else {
-
-					l1.at( 1, target1 );
-
-				}
-
-				l2.closestPointToPoint( target1, true, target2 );
-				return;
-
-			} else {
-
-				// Both u and u2 are out of bounds.
-				var p;
-				if ( d < 0 ) {
-
-					p = l1.start;
-
-				} else {
-
-					p = l1.end;
-
-				}
-
-				var p2;
-				if ( d2 < 0 ) {
-
-					p2 = l2.start;
-
-				} else {
-
-					p2 = l2.end;
-
-				}
-
-				var closestPoint = temp1;
-				var closestPoint2 = temp2;
-				l1.closestPointToPoint( p2, true, temp1 );
-				l2.closestPointToPoint( p, true, temp2 );
-
-				if ( closestPoint.distanceToSquared( p2 ) <= closestPoint2.distanceToSquared( p ) ) {
-
-					target1.copy( closestPoint );
-					target2.copy( p2 );
-					return;
-
-				} else {
-
-					target1.copy( p );
-					target2.copy( closestPoint2 );
-					return;
-
-				}
-
-			}
-
-		};
-
-	} )();
-
-
-	var sphereIntersectTriangle = ( function () {
-
-		// https://stackoverflow.com/questions/34043955/detect-collision-between-sphere-and-triangle-in-three-js
-		var closestPointTemp = new THREE.Vector3();
-		var projectedPointTemp = new THREE.Vector3();
-		var planeTemp = new THREE.Plane();
-		var lineTemp = new THREE.Line3();
-		return function sphereIntersectTriangle( sphere, triangle ) {
-
-			var radius = sphere.radius;
-			var center = sphere.center;
-			var a = triangle.a;
-			var b = triangle.b;
-			var c = triangle.c;
-
-			// phase 1
-			lineTemp.start = a;
-			lineTemp.end = b;
-			var closestPoint1 = lineTemp.closestPointToPoint( center, true, closestPointTemp );
-			if ( closestPoint1.distanceTo( center ) <= radius ) { return true; }
-
-			lineTemp.start = a;
-			lineTemp.end = c;
-			var closestPoint2 = lineTemp.closestPointToPoint( center, true, closestPointTemp );
-			if ( closestPoint2.distanceTo( center ) <= radius ) { return true; }
-
-			lineTemp.start = b;
-			lineTemp.end = c;
-			var closestPoint3 = lineTemp.closestPointToPoint( center, true, closestPointTemp );
-			if ( closestPoint3.distanceTo( center ) <= radius ) { return true; }
-
-			// phase 2
-			var plane = triangle.getPlane( planeTemp );
-			var dp = Math.abs( plane.distanceToPoint( center ) );
-			if ( dp <= radius ) {
-
-				var pp = plane.projectPoint( center, projectedPointTemp );
-				var cp = triangle.containsPoint( pp );
-				if ( cp ) { return true; }
-
-			}
-
-			return false;
-
-		};
-
-	} )();
-
-	var SeparatingAxisTriangle = /*@__PURE__*/(function (Triangle) {
-		function SeparatingAxisTriangle() {
-			var args = [], len = arguments.length;
-			while ( len-- ) args[ len ] = arguments[ len ];
-
-
-			Triangle.apply( this, args );
-
-			this.isSeparatingAxisTriangle = true;
-			this.satAxes = new Array( 4 ).fill().map( () => new THREE.Vector3() );
-			this.satBounds = new Array( 4 ).fill().map( () => new SeparatingAxisBounds() );
-			this.points = [ this.a, this.b, this.c ];
-			this.sphere = new THREE.Sphere();
-
-		}
-
-		if ( Triangle ) SeparatingAxisTriangle.__proto__ = Triangle;
-		SeparatingAxisTriangle.prototype = Object.create( Triangle && Triangle.prototype );
-		SeparatingAxisTriangle.prototype.constructor = SeparatingAxisTriangle;
-
-		return SeparatingAxisTriangle;
-	}(THREE.Triangle));
-
-	SeparatingAxisTriangle.prototype.update = ( function () {
-
-		var arr = new Array( 3 );
-		return function update( ) {
-
-			var a = this.a;
-			var b = this.b;
-			var c = this.c;
-
-			arr[ 0 ] = this.a;
-			arr[ 1 ] = this.b;
-			arr[ 2 ] = this.c;
-
-			var satAxes = this.satAxes;
-			var satBounds = this.satBounds;
-
-			var axis0 = satAxes[ 0 ];
-			var sab0 = satBounds[ 0 ];
-			this.getNormal( axis0 );
-			sab0.setFromPoints( axis0, arr );
-
-			var axis1 = satAxes[ 1 ];
-			var sab1 = satBounds[ 1 ];
-			axis1.subVectors( a, b );
-			sab1.setFromPoints( axis1, arr );
-
-			var axis2 = satAxes[ 2 ];
-			var sab2 = satBounds[ 2 ];
-			axis2.subVectors( b, c );
-			sab2.setFromPoints( axis2, arr );
-
-			var axis3 = satAxes[ 3 ];
-			var sab3 = satBounds[ 3 ];
-			axis3.subVectors( c, a );
-			sab3.setFromPoints( axis3, arr );
-
-			this.sphere.setFromPoints( this.points );
-
-		};
-
-	} )();
-
-	SeparatingAxisTriangle.prototype.intersectsTriangle = ( function () {
-
-		var saTri2 = new SeparatingAxisTriangle();
-		var arr1 = new Array( 3 );
-		var arr2 = new Array( 3 );
-		var cachedSatBounds = new SeparatingAxisBounds();
-		var cachedSatBounds2 = new SeparatingAxisBounds();
-		var cachedAxis = new THREE.Vector3();
-		return function intersectsTriangle( other ) {
-
-			if ( ! other.isSeparatingAxisTriangle ) {
-
-				saTri2.copy( other );
-				saTri2.update();
-				other = saTri2;
-
-			}
-
-			var satBounds1 = this.satBounds;
-			var satAxes1 = this.satAxes;
-			arr2[ 0 ] = other.a;
-			arr2[ 1 ] = other.b;
-			arr2[ 2 ] = other.c;
-			for ( var i = 0; i < 4; i ++ ) {
-
-				var sb = satBounds1[ i ];
-				var sa = satAxes1[ i ];
-				cachedSatBounds.setFromPoints( sa, arr2 );
-				if ( sb.isSeparated( cachedSatBounds ) ) { return false; }
-
-			}
-
-			var satBounds2 = other.satBounds;
-			var satAxes2 = other.satAxes;
-			arr1[ 0 ] = this.a;
-			arr1[ 1 ] = this.b;
-			arr1[ 2 ] = this.c;
-			for ( var i$1 = 0; i$1 < 4; i$1 ++ ) {
-
-				var sb$1 = satBounds2[ i$1 ];
-				var sa$1 = satAxes2[ i$1 ];
-				cachedSatBounds.setFromPoints( sa$1, arr1 );
-				if ( sb$1.isSeparated( cachedSatBounds ) ) { return false; }
-
-			}
-
-			// check crossed axes
-			for ( var i$2 = 0; i$2 < 4; i$2 ++ ) {
-
-				var sa1 = satAxes1[ i$2 ];
-				for ( var i2 = 0; i2 < 4; i2 ++ ) {
-
-					var sa2 = satAxes2[ i2 ];
-					cachedAxis.crossVectors( sa1, sa2 );
-					cachedSatBounds.setFromPoints( cachedAxis, arr1 );
-					cachedSatBounds2.setFromPoints( cachedAxis, arr2 );
-					if ( cachedSatBounds.isSeparated( cachedSatBounds2 ) ) { return false; }
-
-				}
-
-			}
-
-			return true;
-
-		};
-
-	} )();
-
-
-	SeparatingAxisTriangle.prototype.distanceToPoint = ( function () {
-
-		var target = new THREE.Vector3();
-		return function distanceToPoint( point ) {
-
-			this.closestPointToPoint( point, target );
-			return point.distanceTo( target );
-
-		};
-
-	} )();
-
-
-	SeparatingAxisTriangle.prototype.distanceToTriangle = ( function () {
-
-		var point = new THREE.Vector3();
-		var point2 = new THREE.Vector3();
-		var cornerFields = [ 'a', 'b', 'c' ];
-		var line1 = new THREE.Line3();
-		var line2 = new THREE.Line3();
-
-		return function distanceToTriangle( other, target1, target2 ) {
-			if ( target1 === void 0 ) target1 = null;
-			if ( target2 === void 0 ) target2 = null;
-
-
-			if ( this.intersectsTriangle( other ) ) {
-
-				// TODO: This will not result in a point that lies on
-				// the intersection line of the triangles
-				if ( target1 || target2 ) {
-
-					this.getMidpoint( point );
-					other.closestPointToPoint( point, point2 );
-					this.closestPointToPoint( point2, point );
-
-					if ( target1 ) { target1.copy( point ); }
-					if ( target2 ) { target2.copy( point2 ); }
-
-				}
-
-				return 0;
-
-			}
-
-			var closestDistanceSq = Infinity;
-
-			// check all point distances
-			for ( var i = 0; i < 3; i ++ ) {
-
-				var dist = (void 0);
-				var field = cornerFields[ i ];
-				var otherVec = other[ field ];
-				this.closestPointToPoint( otherVec, point );
-
-				dist = otherVec.distanceToSquared( point );
-
-				if ( dist < closestDistanceSq ) {
-
-					closestDistanceSq = dist;
-					if ( target1 ) { target1.copy( point ); }
-					if ( target2 ) { target2.copy( otherVec ); }
-
-				}
-
-
-				var thisVec = this[ field ];
-				other.closestPointToPoint( thisVec, point );
-
-				dist = thisVec.distanceToSquared( point );
-
-				if ( dist < closestDistanceSq ) {
-
-					closestDistanceSq = dist;
-					if ( target1 ) { target1.copy( thisVec ); }
-					if ( target2 ) { target2.copy( point ); }
-
-				}
-
-			}
-
-			for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-				var f11 = cornerFields[ i$1 ];
-				var f12 = cornerFields[ ( i$1 + 1 ) % 3 ];
-				line1.set( this[ f11 ], this[ f12 ] );
-				for ( var i2 = 0; i2 < 3; i2 ++ ) {
-
-					var f21 = cornerFields[ i2 ];
-					var f22 = cornerFields[ ( i2 + 1 ) % 3 ];
-					line2.set( other[ f21 ], other[ f22 ] );
-
-					closestPointsSegmentToSegment( line1, line2, point, point2 );
-
-					var dist$1 = point.distanceToSquared( point2 );
-					if ( dist$1 < closestDistanceSq ) {
-
-						closestDistanceSq = dist$1;
-						if ( target1 ) { target1.copy( point ); }
-						if ( target2 ) { target2.copy( point2 ); }
-
-					}
-
-				}
-
-			}
-
-			return Math.sqrt( closestDistanceSq );
-
-		};
-
-	} )();
-
-	var OrientedBox = /*@__PURE__*/(function (Box3) {
-		function OrientedBox() {
-			var args = [], len = arguments.length;
-			while ( len-- ) args[ len ] = arguments[ len ];
-
-
-			Box3.apply( this, args );
-
-			this.isOrientedBox = true;
-			this.matrix = new THREE.Matrix4();
-			this.invMatrix = new THREE.Matrix4();
-			this.points = new Array( 8 ).fill().map( () => new THREE.Vector3() );
-			this.satAxes = new Array( 3 ).fill().map( () => new THREE.Vector3() );
-			this.satBounds = new Array( 3 ).fill().map( () => new SeparatingAxisBounds() );
-			this.alignedSatBounds = new Array( 3 ).fill().map( () => new SeparatingAxisBounds() );
-			this.sphere = new THREE.Sphere();
-
-		}
-
-		if ( Box3 ) OrientedBox.__proto__ = Box3;
-		OrientedBox.prototype = Object.create( Box3 && Box3.prototype );
-		OrientedBox.prototype.constructor = OrientedBox;
-
-		OrientedBox.prototype.set = function set ( min, max, matrix ) {
-
-			Box3.prototype.set.call( this, min, max );
-			this.matrix = matrix;
-
-		};
-
-		OrientedBox.prototype.copy = function copy ( other ) {
-
-			Box3.prototype.copy.call( this, other );
-			this.matrix.copy( other.matrix );
-
-		};
-
-		return OrientedBox;
-	}(THREE.Box3));
-
-	OrientedBox.prototype.update = ( function () {
-
-		return function update() {
-
-			var matrix = this.matrix;
-			var min = this.min;
-			var max = this.max;
-
-			var points = this.points;
-			for ( var x = 0; x <= 1; x ++ ) {
-
-				for ( var y = 0; y <= 1; y ++ ) {
-
-					for ( var z = 0; z <= 1; z ++ ) {
-
-						var i = ( ( 1 << 0 ) * x ) | ( ( 1 << 1 ) * y ) | ( ( 1 << 2 ) * z );
-						var v = points[ i ];
-						v.x = x ? max.x : min.x;
-						v.y = y ? max.y : min.y;
-						v.z = z ? max.z : min.z;
-
-						v.applyMatrix4( matrix );
-
-					}
-
-				}
-
-			}
-
-			this.sphere.setFromPoints( this.points );
-
-			var satBounds = this.satBounds;
-			var satAxes = this.satAxes;
-			var minVec = points[ 0 ];
-			for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-				var axis = satAxes[ i$1 ];
-				var sb = satBounds[ i$1 ];
-				var index = 1 << i$1;
-				var pi = points[ index ];
-
-				axis.subVectors( minVec, pi );
-				sb.setFromPoints( axis, points );
-
-			}
-
-			var alignedSatBounds = this.alignedSatBounds;
-			alignedSatBounds[ 0 ].setFromPointsField( points, 'x' );
-			alignedSatBounds[ 1 ].setFromPointsField( points, 'y' );
-			alignedSatBounds[ 2 ].setFromPointsField( points, 'z' );
-
-			this.invMatrix.getInverse( this.matrix );
-
-		};
-
-	} )();
-
-	OrientedBox.prototype.intersectsBox = ( function () {
-
-		var aabbBounds = new SeparatingAxisBounds();
-		return function intersectsBox( box ) {
-
-			if ( ! box.intersectsSphere( this.sphere ) ) { return false; }
-
-			var min = box.min;
-			var max = box.max;
-			var satBounds = this.satBounds;
-			var satAxes = this.satAxes;
-			var alignedSatBounds = this.alignedSatBounds;
-
-			aabbBounds.min = min.x;
-			aabbBounds.max = max.x;
-			if ( alignedSatBounds[ 0 ].isSeparated( aabbBounds ) ) { return false; }
-
-			aabbBounds.min = min.y;
-			aabbBounds.max = max.y;
-			if ( alignedSatBounds[ 1 ].isSeparated( aabbBounds ) ) { return false; }
-
-			aabbBounds.min = min.z;
-			aabbBounds.max = max.z;
-			if ( alignedSatBounds[ 2 ].isSeparated( aabbBounds ) ) { return false; }
-
-			for ( var i = 0; i < 3; i ++ ) {
-
-				var axis = satAxes[ i ];
-				var sb = satBounds[ i ];
-				aabbBounds.setFromBox( axis, box );
-				if ( sb.isSeparated( aabbBounds ) ) { return false; }
-
-			}
-
-			return true;
-
-		};
-
-	} )();
-
-	OrientedBox.prototype.intersectsTriangle = ( function () {
-
-		var saTri = new SeparatingAxisTriangle();
-		var pointsArr = new Array( 3 );
-		var cachedSatBounds = new SeparatingAxisBounds();
-		var cachedSatBounds2 = new SeparatingAxisBounds();
-		var cachedAxis = new THREE.Vector3();
-		return function intersectsTriangle( triangle ) {
-
-			if ( ! triangle.isSeparatingAxisTriangle ) {
-
-				saTri.copy( triangle );
-				saTri.update();
-				triangle = saTri;
-
-			}
-
-			var satBounds = this.satBounds;
-			var satAxes = this.satAxes;
-
-			pointsArr[ 0 ] = triangle.a;
-			pointsArr[ 1 ] = triangle.b;
-			pointsArr[ 2 ] = triangle.c;
-
-			for ( var i = 0; i < 3; i ++ ) {
-
-				var sb = satBounds[ i ];
-				var sa = satAxes[ i ];
-				cachedSatBounds.setFromPoints( sa, pointsArr );
-				if ( sb.isSeparated( cachedSatBounds ) ) { return false; }
-
-			}
-
-			var triSatBounds = triangle.satBounds;
-			var triSatAxes = triangle.satAxes;
-			var points = this.points;
-			for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-				var sb$1 = triSatBounds[ i$1 ];
-				var sa$1 = triSatAxes[ i$1 ];
-				cachedSatBounds.setFromPoints( sa$1, points );
-				if ( sb$1.isSeparated( cachedSatBounds ) ) { return false; }
-
-			}
-
-			// check crossed axes
-			for ( var i$2 = 0; i$2 < 3; i$2 ++ ) {
-
-				var sa1 = satAxes[ i$2 ];
-				for ( var i2 = 0; i2 < 4; i2 ++ ) {
-
-					var sa2 = triSatAxes[ i2 ];
-					cachedAxis.crossVectors( sa1, sa2 );
-					cachedSatBounds.setFromPoints( cachedAxis, pointsArr );
-					cachedSatBounds2.setFromPoints( cachedAxis, points );
-					if ( cachedSatBounds.isSeparated( cachedSatBounds2 ) ) { return false; }
-
-				}
-
-			}
-
-			return true;
-
-		};
-
-	} )();
-
-	OrientedBox.prototype.closestPointToPoint = ( function () {
-
-		return function closestPointToPoint( point, target1 ) {
-
-			target1
-				.copy( point )
-				.applyMatrix4( this.invMatrix )
-				.clamp( this.min, this.max )
-				.applyMatrix4( this.matrix );
-
-			return target1;
-
-		};
-
-	} )();
-
-	OrientedBox.prototype.distanceToPoint = ( function () {
-
-		var target = new THREE.Vector3();
-		return function distanceToPoint( point ) {
-
-			this.closestPointToPoint( point, target );
-			return point.distanceTo( target );
-
-		};
-
-	} )();
-
-
-	OrientedBox.prototype.distanceToBox = ( function () {
-
-		var xyzFields = [ 'x', 'y', 'z' ];
-		var segments1 = new Array( 12 ).fill().map( () => new THREE.Line3() );
-		var segments2 = new Array( 12 ).fill().map( () => new THREE.Line3() );
-
-		var point1 = new THREE.Vector3();
-		var point2 = new THREE.Vector3();
-
-		return function distanceToBox( box, threshold, target1, target2 ) {
-			if ( threshold === void 0 ) threshold = 0;
-			if ( target1 === void 0 ) target1 = null;
-			if ( target2 === void 0 ) target2 = null;
-
-
-			if ( this.intersectsBox( box ) ) {
-
-				if ( target1 || target2 ) {
-
-					box.getCenter( point2 );
-					this.closestPointToPoint( point2, point1 );
-					box.closestPointToPoint( point1, point2 );
-
-					if ( target1 ) { target1.copy( point1 ); }
-					if ( target2 ) { target2.copy( point2 ); }
-
-				}
-				return 0;
-
-			}
-
-			var threshold2 = threshold * threshold;
-			var min = box.min;
-			var max = box.max;
-			var points = this.points;
-
-
-			// iterate over every edge and compare distances
-			var closestDistanceSq = Infinity;
-
-			// check over all these points
-			for ( var i = 0; i < 8; i ++ ) {
-
-				var p = points[ i ];
-				point2.copy( p ).clamp( min, max );
-
-				var dist = p.distanceToSquared( point2 );
-				if ( dist < closestDistanceSq ) {
-
-					closestDistanceSq = dist;
-					if ( target1 ) { target1.copy( p ); }
-					if ( target2 ) { target2.copy( point2 ); }
-
-					if ( dist < threshold2 ) { return Math.sqrt( dist ); }
-
-				}
-
-			}
-
-			// generate and check all line segment distances
-			var count = 0;
-			for ( var i$1 = 0; i$1 < 3; i$1 ++ ) {
-
-				for ( var i1 = 0; i1 <= 1; i1 ++ ) {
-
-					for ( var i2 = 0; i2 <= 1; i2 ++ ) {
-
-						var nextIndex = ( i$1 + 1 ) % 3;
-						var nextIndex2 = ( i$1 + 2 ) % 3;
-
-						// get obb line segments
-						var index = i1 << nextIndex | i2 << nextIndex2;
-						var index2 = 1 << i$1 | i1 << nextIndex | i2 << nextIndex2;
-						var p1 = points[ index ];
-						var p2 = points[ index2 ];
-						var line1 = segments1[ count ];
-						line1.set( p1, p2 );
-
-
-						// get aabb line segments
-						var f1 = xyzFields[ i$1 ];
-						var f2 = xyzFields[ nextIndex ];
-						var f3 = xyzFields[ nextIndex2 ];
-						var line2 = segments2[ count ];
-						var start = line2.start;
-						var end = line2.end;
-
-						start[ f1 ] = min[ f1 ];
-						start[ f2 ] = i1 ? min[ f2 ] : max[ f2 ];
-						start[ f3 ] = i2 ? min[ f3 ] : max[ f2 ];
-
-						end[ f1 ] = max[ f1 ];
-						end[ f2 ] = i1 ? min[ f2 ] : max[ f2 ];
-						end[ f3 ] = i2 ? min[ f3 ] : max[ f2 ];
-
-						count ++;
-
-					}
-
-				}
-
-			}
-
-			// check all the other boxes point
-			for ( var x = 0; x <= 1; x ++ ) {
-
-				for ( var y = 0; y <= 1; y ++ ) {
-
-					for ( var z = 0; z <= 1; z ++ ) {
-
-						point2.x = x ? max.x : min.x;
-						point2.y = y ? max.y : min.y;
-						point2.z = z ? max.z : min.z;
-
-						this.closestPointToPoint( point2, point1 );
-						var dist$1 = point2.distanceToSquared( point1 );
-						if ( dist$1 < closestDistanceSq ) {
-
-							closestDistanceSq = dist$1;
-							if ( target1 ) { target1.copy( point1 ); }
-							if ( target2 ) { target2.copy( point2 ); }
-
-							if ( dist$1 < threshold2 ) { return Math.sqrt( dist$1 ); }
-
-						}
-
-					}
-
-				}
-
-			}
-
-			for ( var i$2 = 0; i$2 < 12; i$2 ++ ) {
-
-				var l1 = segments1[ i$2 ];
-				for ( var i2$1 = 0; i2$1 < 12; i2$1 ++ ) {
-
-					var l2 = segments2[ i2$1 ];
-					closestPointsSegmentToSegment( l1, l2, point1, point2 );
-					var dist$2 = point1.distanceToSquared( point2 );
-					if ( dist$2 < closestDistanceSq ) {
-
-						closestDistanceSq = dist$2;
-						if ( target1 ) { target1.copy( point1 ); }
-						if ( target2 ) { target2.copy( point2 ); }
-
-						if ( dist$2 < threshold2 ) { return Math.sqrt( dist$2 ); }
-
-					}
-
-				}
-
-			}
-
-			return Math.sqrt( closestDistanceSq );
-
-		};
-
-	} )();
-
-	// sets the vertices of triangle `tri` with the 3 vertices after i
-	function setTriangle( tri, i, index, pos ) {
-
-		var ta = tri.a;
-		var tb = tri.b;
-		var tc = tri.c;
-
-		var i3 = index.getX( i );
-		ta.x = pos.getX( i3 );
-		ta.y = pos.getY( i3 );
-		ta.z = pos.getZ( i3 );
-
-		i3 = index.getX( i + 1 );
-		tb.x = pos.getX( i3 );
-		tb.y = pos.getY( i3 );
-		tb.z = pos.getZ( i3 );
-
-		i3 = index.getX( i + 2 );
-		tc.x = pos.getX( i3 );
-		tc.y = pos.getY( i3 );
-		tc.z = pos.getZ( i3 );
-
-	}
-
-	// Ripped and modified From THREE.js Mesh raycast
-	// https://github.com/mrdoob/three.js/blob/0aa87c999fe61e216c1133fba7a95772b503eddf/src/objects/Mesh.js#L115
-	var vA = new THREE.Vector3();
-	var vB = new THREE.Vector3();
-	var vC = new THREE.Vector3();
-
-	var uvA = new THREE.Vector2();
-	var uvB = new THREE.Vector2();
-	var uvC = new THREE.Vector2();
-
-	var intersectionPoint = new THREE.Vector3();
-	var intersectionPointWorld = new THREE.Vector3();
-
-	function checkIntersection( object, material, raycaster, ray, pA, pB, pC, point ) {
-
-		var intersect;
-		if ( material.side === THREE.BackSide ) {
-
-			intersect = ray.intersectTriangle( pC, pB, pA, true, point );
-
-		} else {
-
-			intersect = ray.intersectTriangle( pA, pB, pC, material.side !== THREE.DoubleSide, point );
-
-		}
-
-		if ( intersect === null ) { return null; }
-
-		intersectionPointWorld.copy( point );
-		intersectionPointWorld.applyMatrix4( object.matrixWorld );
-
-		var distance = raycaster.ray.origin.distanceTo( intersectionPointWorld );
-
-		if ( distance < raycaster.near || distance > raycaster.far ) { return null; }
-
-		return {
-			distance: distance,
-			point: intersectionPointWorld.clone(),
-			object: object
-		};
-
-	}
-
-	function checkBufferGeometryIntersection( object, raycaster, ray, position, uv, a, b, c ) {
-
-		vA.fromBufferAttribute( position, a );
-		vB.fromBufferAttribute( position, b );
-		vC.fromBufferAttribute( position, c );
-
-		var intersection = checkIntersection( object, object.material, raycaster, ray, vA, vB, vC, intersectionPoint );
-
-		if ( intersection ) {
-
-			if ( uv ) {
-
-				uvA.fromBufferAttribute( uv, a );
-				uvB.fromBufferAttribute( uv, b );
-				uvC.fromBufferAttribute( uv, c );
-
-				intersection.uv = THREE.Triangle.getUV( intersectionPoint, vA, vB, vC, uvA, uvB, uvC, new THREE.Vector2( ) );
-
-			}
-
-			var normal = new THREE.Vector3();
-			intersection.face = new THREE.Face3( a, b, c, THREE.Triangle.getNormal( vA, vB, vC, normal ) );
-			intersection.faceIndex = a;
-
-		}
-
-		return intersection;
-
-	}
-
-	// https://github.com/mrdoob/three.js/blob/0aa87c999fe61e216c1133fba7a95772b503eddf/src/objects/Mesh.js#L258
-	function intersectTri( mesh, geo, raycaster, ray, tri, intersections ) {
-
-		var triOffset = tri * 3;
-		var a = geo.index.getX( triOffset );
-		var b = geo.index.getX( triOffset + 1 );
-		var c = geo.index.getX( triOffset + 2 );
-
-		var intersection = checkBufferGeometryIntersection( mesh, raycaster, ray, geo.attributes.position, geo.attributes.uv, a, b, c );
-
-		if ( intersection ) {
-
-			intersection.faceIndex = tri;
-			if ( intersections ) { intersections.push( intersection ); }
-			return intersection;
-
-		}
-
-		return null;
-
-	}
-
-	function intersectTris( mesh, geo, raycaster, ray, offset, count, intersections ) {
-
-		for ( var i = offset, end = offset + count; i < end; i ++ ) {
-
-			intersectTri( mesh, geo, raycaster, ray, i, intersections );
-
-		}
-
-	}
-	function intersectClosestTri( mesh, geo, raycaster, ray, offset, count ) {
-
-		var dist = Infinity;
-		var res = null;
-		for ( var i = offset, end = offset + count; i < end; i ++ ) {
-
-			var intersection = intersectTri( mesh, geo, raycaster, ray, i );
-			if ( intersection && intersection.distance < dist ) {
-
-				res = intersection;
-				dist = intersection.distance;
-
-			}
-
-		}
-
-		return res;
-
-	}
-
-	var boundingBox = new THREE.Box3();
-	var boxIntersection = new THREE.Vector3();
-	var xyzFields$1 = [ 'x', 'y', 'z' ];
-
-	function intersectRay( node, ray, target ) {
-
-		arrayToBox( node.boundingData, boundingBox );
-
-		return ray.intersectBox( boundingBox, target );
-
-	}
-
-	function raycast( node, mesh, raycaster, ray, intersects ) {
-
-		if ( node.continueGeneration ) {
-
-			node.continueGeneration();
-
-		}
-
-		var isLeaf = ! ! node.count;
-		if ( isLeaf ) {
-
-			intersectTris( mesh, mesh.geometry, raycaster, ray, node.offset, node.count, intersects );
-
-		} else {
-
-			if ( intersectRay( node.left, ray, boxIntersection ) ) {
-
-				raycast( node.left, mesh, raycaster, ray, intersects );
-
-			}
-
-			if ( intersectRay( node.right, ray, boxIntersection ) ) {
-
-				raycast( node.right, mesh, raycaster, ray, intersects );
-
-			}
-
-		}
-
-	}
-
-	function raycastFirst( node, mesh, raycaster, ray ) {
-
-		if ( node.continueGeneration ) {
-
-			node.continueGeneration();
-
-		}
-
-		var isLeaf = ! ! node.count;
-		if ( isLeaf ) {
-
-			return intersectClosestTri( mesh, mesh.geometry, raycaster, ray, node.offset, node.count );
-
-		} else {
-
-
-			// consider the position of the split plane with respect to the oncoming ray; whichever direction
-			// the ray is coming from, look for an intersection among that side of the tree first
-			var splitAxis = node.splitAxis;
-			var xyzAxis = xyzFields$1[ splitAxis ];
-			var rayDir = ray.direction[ xyzAxis ];
-			var leftToRight = rayDir >= 0;
-
-			// c1 is the child to check first
-			var c1, c2;
-			if ( leftToRight ) {
-
-				c1 = node.left;
-				c2 = node.right;
-
-			} else {
-
-				c1 = node.right;
-				c2 = node.left;
-
-			}
-
-			var c1Intersection = intersectRay( c1, ray, boxIntersection );
-			var c1Result = c1Intersection ? raycastFirst( c1, mesh, raycaster, ray ) : null;
-
-			// if we got an intersection in the first node and it's closer than the second node's bounding
-			// box, we don't need to consider the second node because it couldn't possibly be a better result
-			if ( c1Result ) {
-
-				// check only along the split axis
-				var rayOrig = ray.origin[ xyzAxis ];
-				var toPoint = rayOrig - c1Result.point[ xyzAxis ];
-				var toChild1 = rayOrig - c2.boundingData[ splitAxis ];
-				var toChild2 = rayOrig - c2.boundingData[ splitAxis + 3 ];
-
-				var toPointSq = toPoint * toPoint;
-				if ( toPointSq <= toChild1 * toChild1 && toPointSq <= toChild2 * toChild2 ) {
-
-					return c1Result;
-
-				}
-
-			}
-
-			// either there was no intersection in the first node, or there could still be a closer
-			// intersection in the second, so check the second node and then take the better of the two
-			var c2Intersection = intersectRay( c2, ray, boxIntersection );
-			var c2Result = c2Intersection ? raycastFirst( c2, mesh, raycaster, ray ) : null;
-
-			if ( c1Result && c2Result ) {
-
-				return c1Result.distance <= c2Result.distance ? c1Result : c2Result;
-
-			} else {
-
-				return c1Result || c2Result || null;
-
-			}
-
-		}
-
-	}
-
-	var shapecast = ( function () {
-
-		var triangle = new SeparatingAxisTriangle();
-		var cachedBox1 = new THREE.Box3();
-		var cachedBox2 = new THREE.Box3();
-		return function shapecast( node, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc ) {
-			if ( intersectsTriangleFunc === void 0 ) intersectsTriangleFunc = null;
-			if ( nodeScoreFunc === void 0 ) nodeScoreFunc = null;
-
-
-			if ( node.continueGeneration ) {
-
-				node.continueGeneration();
-
-			}
-
-			var isLeaf = ! ! node.count;
-			if ( isLeaf && intersectsTriangleFunc ) {
-
-				var geometry = mesh.geometry;
-				var index = geometry.index;
-				var pos = geometry.attributes.position;
-				var offset = node.offset;
-				var count = node.count;
-
-				for ( var i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
-
-					setTriangle( triangle, i, index, pos );
-					triangle.update();
-
-					if ( intersectsTriangleFunc( triangle, i, i + 1, i + 2 ) ) {
-
-						return true;
-
-					}
-
-				}
-
-				return false;
-
-			} else {
-
-				var left = node.left;
-				var right = node.right;
-				var c1 = left;
-				var c2 = right;
-
-				var score1, score2;
-				var box1, box2;
-				if ( nodeScoreFunc ) {
-
-					box1 = cachedBox1;
-					box2 = cachedBox2;
-
-					arrayToBox( c1.boundingData, box1 );
-					arrayToBox( c2.boundingData, box2 );
-
-					score1 = nodeScoreFunc( box1 );
-					score2 = nodeScoreFunc( box2 );
-
-					if ( score2 < score1 ) {
-
-						c1 = right;
-						c2 = left;
-
-						var temp = score1;
-						score1 = score2;
-						score2 = temp;
-
-						var tempBox = box1;
-						box1 = box2;
-						box2 = tempBox;
-
-					}
-
-				}
-
-				if ( ! box1 ) {
-
-					box1 = cachedBox1;
-					arrayToBox( c1.boundingData, box1 );
-
-				}
-
-				var isC1Leaf = ! ! c1.count;
-				var c1Intersection =
-					intersectsBoundsFunc( box1, isC1Leaf, score1 ) &&
-					shapecast( c1, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc );
-
-				if ( c1Intersection ) { return true; }
-
-
-				if ( ! box2 ) {
-
-					box2 = cachedBox2;
-					arrayToBox( c2.boundingData, box2 );
-
-				}
-
-				var isC2Leaf = ! ! c2.count;
-				var c2Intersection =
-					intersectsBoundsFunc( box2, isC2Leaf, score2 ) &&
-					shapecast( c2, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc );
-
-				if ( c2Intersection ) { return true; }
-
-				return false;
-
-			}
-
-		};
-
-	} )();
-
-	var intersectsGeometry = ( function () {
-
-		var triangle = new SeparatingAxisTriangle();
-		var triangle2 = new SeparatingAxisTriangle();
-		var cachedMesh = new THREE.Mesh();
-		var invertedMat = new THREE.Matrix4();
-
-		var obb = new OrientedBox();
-		var obb2 = new OrientedBox();
-
-		return function intersectsGeometry( node, mesh, geometry, geometryToBvh, cachedObb ) {
-			if ( cachedObb === void 0 ) cachedObb = null;
-
-
-			if ( node.continueGeneration ) {
-
-				node.continueGeneration();
-
-			}
-
-			if ( cachedObb === null ) {
-
-				if ( ! geometry.boundingBox ) {
-
-					geometry.computeBoundingBox();
-
-				}
-
-				obb.set( geometry.boundingBox.min, geometry.boundingBox.max, geometryToBvh );
-				obb.update();
-				cachedObb = obb;
-
-			}
-
-			var isLeaf = ! ! node.count;
-			if ( isLeaf ) {
-
-				var thisGeometry = mesh.geometry;
-				var thisIndex = thisGeometry.index;
-				var thisPos = thisGeometry.attributes.position;
-
-				var index = geometry.index;
-				var pos = geometry.attributes.position;
-
-				var offset = node.offset;
-				var count = node.count;
-
-				// get the inverse of the geometry matrix so we can transform our triangles into the
-				// geometry space we're trying to test. We assume there are fewer triangles being checked
-				// here.
-				invertedMat.getInverse( geometryToBvh );
-
-				if ( geometry.boundsTree ) {
-
-					arrayToBox( node.boundingData, obb2 );
-					obb2.matrix.copy( invertedMat );
-					obb2.update();
-
-					cachedMesh.geometry = geometry;
-					var res = geometry.boundsTree.shapecast( cachedMesh, box => obb2.intersectsBox( box ), function ( tri ) {
-
-						tri.a.applyMatrix4( geometryToBvh );
-						tri.b.applyMatrix4( geometryToBvh );
-						tri.c.applyMatrix4( geometryToBvh );
-						tri.update();
-
-						for ( var i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
-
-							// this triangle needs to be transformed into the current BVH coordinate frame
-							setTriangle( triangle2, i, thisIndex, thisPos );
-							triangle2.update();
-							if ( tri.intersectsTriangle( triangle2 ) ) {
-
-								return true;
-
-							}
-
-						}
-
-						return false;
-
-					} );
-					cachedMesh.geometry = null;
-
-					return res;
-
-				} else {
-
-					for ( var i = offset * 3, l = ( count + offset * 3 ); i < l; i += 3 ) {
-
-						// this triangle needs to be transformed into the current BVH coordinate frame
-						setTriangle( triangle, i, thisIndex, thisPos );
-						triangle.a.applyMatrix4( invertedMat );
-						triangle.b.applyMatrix4( invertedMat );
-						triangle.c.applyMatrix4( invertedMat );
-						triangle.update();
-
-						for ( var i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
-
-							setTriangle( triangle2, i2, index, pos );
-							triangle2.update();
-
-							if ( triangle.intersectsTriangle( triangle2 ) ) {
-
-								return true;
-
-							}
-
-						}
-
-					}
-
-				}
-
-			} else {
-
-				var left = node.left;
-				var right = node.right;
-
-				arrayToBox( left.boundingData, boundingBox );
-				var leftIntersection =
-					cachedObb.intersectsBox( boundingBox ) &&
-					intersectsGeometry( left, mesh, geometry, geometryToBvh, cachedObb );
-
-				if ( leftIntersection ) { return true; }
-
-
-				arrayToBox( right.boundingData, boundingBox );
-				var rightIntersection =
-					cachedObb.intersectsBox( boundingBox ) &&
-					intersectsGeometry( right, mesh, geometry, geometryToBvh, cachedObb );
-
-				if ( rightIntersection ) { return true; }
-
-				return false;
-
-			}
-
-		};
-
-	} )();
-
-	var boundingBox$1 = new THREE.Box3();
-	var boxIntersection$1 = new THREE.Vector3();
-	var xyzFields$2 = [ 'x', 'y', 'z' ];
-
-
-
-	function raycastBuffer( stride4Offset, mesh, raycaster, ray, intersects ) {
-
-		var stride2Offset = stride4Offset * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-		var isLeaf = /* node count */ uint16Array[ stride2Offset + 15 ] === 0xffff;
-		if ( isLeaf ) {
-
-			intersectTris( mesh, mesh.geometry, raycaster, ray, /* node offset */ uint32Array[ stride4Offset + 6 ], /* node count */ uint16Array[ stride2Offset + 14 ], intersects );
-
-		} else {
-
-			if ( intersectRayBuffer( /* node left */ stride4Offset + 8, float32Array, ray, boxIntersection$1 ) ) {
-
-				raycastBuffer( /* node left */ stride4Offset + 8, mesh, raycaster, ray, intersects );
-
-			}
-
-			if ( intersectRayBuffer( /* node right */ uint32Array[ stride4Offset + 6 ], float32Array, ray, boxIntersection$1 ) ) {
-
-				raycastBuffer( /* node right */ uint32Array[ stride4Offset + 6 ], mesh, raycaster, ray, intersects );
-
-			}
-
-		}
-
-	}
-
-	function raycastFirstBuffer( stride4Offset, mesh, raycaster, ray ) {
-
-		var stride2Offset = stride4Offset * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-		var isLeaf = /* node count */ uint16Array[ stride2Offset + 15 ] === 0xffff;
-		if ( isLeaf ) {
-
-			return intersectClosestTri( mesh, mesh.geometry, raycaster, ray, /* node offset */ uint32Array[ stride4Offset + 6 ], /* node count */ uint16Array[ stride2Offset + 14 ] );
-
-		} else {
-
-
-			// consider the position of the split plane with respect to the oncoming ray; whichever direction
-			// the ray is coming from, look for an intersection among that side of the tree first
-			var splitAxis = /* node splitAxis */ uint32Array[ stride4Offset + 7 ];
-			var xyzAxis = xyzFields$2[ splitAxis ];
-			var rayDir = ray.direction[ xyzAxis ];
-			var leftToRight = rayDir >= 0;
-
-			// c1 is the child to check first
-			var c1, c2;
-			if ( leftToRight ) {
-
-				c1 = /* node left */ stride4Offset + 8;
-				c2 = /* node right */ uint32Array[ stride4Offset + 6 ];
-
-			} else {
-
-				c1 = /* node right */ uint32Array[ stride4Offset + 6 ];
-				c2 = /* node left */ stride4Offset + 8;
-
-			}
-
-			var c1Intersection = intersectRayBuffer( c1, float32Array, ray, boxIntersection$1 );
-			var c1Result = c1Intersection ? raycastFirstBuffer( c1, mesh, raycaster, ray ) : null;
-
-			// if we got an intersection in the first node and it's closer than the second node's bounding
-			// box, we don't need to consider the second node because it couldn't possibly be a better result
-			if ( c1Result ) {
-
-				// check only along the split axis
-				var rayOrig = ray.origin[ xyzAxis ];
-				var toPoint = rayOrig - c1Result.point[ xyzAxis ];
-				var toChild1 = rayOrig - /* c2 boundingData */ float32Array[ c2 + splitAxis ];
-				var toChild2 = rayOrig - /* c2 boundingData */ float32Array[ c2 + splitAxis + 3 ];
-
-				var toPointSq = toPoint * toPoint;
-				if ( toPointSq <= toChild1 * toChild1 && toPointSq <= toChild2 * toChild2 ) {
-
-					return c1Result;
-
-				}
-
-			}
-
-			// either there was no intersection in the first node, or there could still be a closer
-			// intersection in the second, so check the second node and then take the better of the two
-			var c2Intersection = intersectRayBuffer( c2, float32Array, ray, boxIntersection$1 );
-			var c2Result = c2Intersection ? raycastFirstBuffer( c2, mesh, raycaster, ray ) : null;
-
-			if ( c1Result && c2Result ) {
-
-				return c1Result.distance <= c2Result.distance ? c1Result : c2Result;
-
-			} else {
-
-				return c1Result || c2Result || null;
-
-			}
-
-		}
-
-	}
-
-	var shapecastBuffer = ( function () {
-
-		var triangle = new SeparatingAxisTriangle();
-		var cachedBox1 = new THREE.Box3();
-		var cachedBox2 = new THREE.Box3();
-		return function shapecastBuffer( stride4Offset, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc ) {
-			if ( intersectsTriangleFunc === void 0 ) intersectsTriangleFunc = null;
-			if ( nodeScoreFunc === void 0 ) nodeScoreFunc = null;
-
-
-			var stride2Offset = stride4Offset * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-			var isLeaf = /* node count */ uint16Array[ stride2Offset + 15 ] === 0xffff;
-			if ( isLeaf && intersectsTriangleFunc ) {
-
-				var geometry = mesh.geometry;
-				var index = geometry.index;
-				var pos = geometry.attributes.position;
-				var offset = /* node offset */ uint32Array[ stride4Offset + 6 ];
-				var count = /* node count */ uint16Array[ stride2Offset + 14 ];
-
-				for ( var i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
-
-					setTriangle( triangle, i, index, pos );
-					triangle.update();
-
-					if ( intersectsTriangleFunc( triangle, i, i + 1, i + 2 ) ) {
-
-						return true;
-
-					}
-
-				}
-
-				return false;
-
-			} else {
-
-				var left = /* node left */ stride4Offset + 8;
-				var right = /* node right */ uint32Array[ stride4Offset + 6 ];
-				var c1 = left;
-				var c2 = right;
-
-				var score1, score2;
-				var box1, box2;
-				if ( nodeScoreFunc ) {
-
-					box1 = cachedBox1;
-					box2 = cachedBox2;
-
-					arrayToBoxBuffer( /* c1 boundingData */ c1, float32Array, box1 );
-					arrayToBoxBuffer( /* c2 boundingData */ c2, float32Array, box2 );
-
-					score1 = nodeScoreFunc( box1 );
-					score2 = nodeScoreFunc( box2 );
-
-					if ( score2 < score1 ) {
-
-						c1 = right;
-						c2 = left;
-
-						var temp = score1;
-						score1 = score2;
-						score2 = temp;
-
-						var tempBox = box1;
-						box1 = box2;
-						box2 = tempBox;
-
-					}
-
-				}
-
-				if ( ! box1 ) {
-
-					box1 = cachedBox1;
-					arrayToBoxBuffer( /* c1 boundingData */ c1, float32Array, box1 );
-
-				}
-
-				var isC1Leaf = /* c1 count */ uint16Array[ c1 + 15 ] === 0xffff;
-				var c1Intersection =
-					intersectsBoundsFunc( box1, isC1Leaf, score1 ) &&
-					shapecastBuffer( c1, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc );
-
-				if ( c1Intersection ) { return true; }
-
-
-				if ( ! box2 ) {
-
-					box2 = cachedBox2;
-					arrayToBoxBuffer( /* c2 boundingData */ c2, float32Array, box2 );
-
-				}
-
-				var isC2Leaf = /* c2 count */ uint16Array[ c2 + 15 ] === 0xffff;
-				var c2Intersection =
-					intersectsBoundsFunc( box2, isC2Leaf, score2 ) &&
-					shapecastBuffer( c2, mesh, intersectsBoundsFunc, intersectsTriangleFunc, nodeScoreFunc );
-
-				if ( c2Intersection ) { return true; }
-
-				return false;
-
-			}
-
-		};
-
-	} )();
-
-	var intersectsGeometryBuffer = ( function () {
-
-		var triangle = new SeparatingAxisTriangle();
-		var triangle2 = new SeparatingAxisTriangle();
-		var cachedMesh = new THREE.Mesh();
-		var invertedMat = new THREE.Matrix4();
-
-		var obb = new OrientedBox();
-		var obb2 = new OrientedBox();
-
-		return function intersectsGeometryBuffer( stride4Offset, mesh, geometry, geometryToBvh, cachedObb ) {
-			if ( cachedObb === void 0 ) cachedObb = null;
-
-
-			var stride2Offset = stride4Offset * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-			if ( cachedObb === null ) {
-
-				if ( ! geometry.boundingBox ) {
-
-					geometry.computeBoundingBox();
-
-				}
-
-				obb.set( geometry.boundingBox.min, geometry.boundingBox.max, geometryToBvh );
-				obb.update();
-				cachedObb = obb;
-
-			}
-
-			var isLeaf = /* node count */ uint16Array[ stride2Offset + 15 ] === 0xffff;
-			if ( isLeaf ) {
-
-				var thisGeometry = mesh.geometry;
-				var thisIndex = thisGeometry.index;
-				var thisPos = thisGeometry.attributes.position;
-
-				var index = geometry.index;
-				var pos = geometry.attributes.position;
-
-				var offset = /* node offset */ uint32Array[ stride4Offset + 6 ];
-				var count = /* node count */ uint16Array[ stride2Offset + 14 ];
-
-				// get the inverse of the geometry matrix so we can transform our triangles into the
-				// geometry space we're trying to test. We assume there are fewer triangles being checked
-				// here.
-				invertedMat.getInverse( geometryToBvh );
-
-				if ( geometry.boundsTree ) {
-
-					arrayToBoxBuffer( /* node boundingData */ stride4Offset, float32Array, obb2 );
-					obb2.matrix.copy( invertedMat );
-					obb2.update();
-
-					cachedMesh.geometry = geometry;
-					var res = geometry.boundsTree.shapecast( cachedMesh, box => obb2.intersectsBox( box ), function ( tri ) {
-
-						tri.a.applyMatrix4( geometryToBvh );
-						tri.b.applyMatrix4( geometryToBvh );
-						tri.c.applyMatrix4( geometryToBvh );
-						tri.update();
-
-						for ( var i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
-
-							// this triangle needs to be transformed into the current BVH coordinate frame
-							setTriangle( triangle2, i, thisIndex, thisPos );
-							triangle2.update();
-							if ( tri.intersectsTriangle( triangle2 ) ) {
-
-								return true;
-
-							}
-
-						}
-
-						return false;
-
-					} );
-					cachedMesh.geometry = null;
-
-					return res;
-
-				} else {
-
-					for ( var i = offset * 3, l = ( count + offset * 3 ); i < l; i += 3 ) {
-
-						// this triangle needs to be transformed into the current BVH coordinate frame
-						setTriangle( triangle, i, thisIndex, thisPos );
-						triangle.a.applyMatrix4( invertedMat );
-						triangle.b.applyMatrix4( invertedMat );
-						triangle.c.applyMatrix4( invertedMat );
-						triangle.update();
-
-						for ( var i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
-
-							setTriangle( triangle2, i2, index, pos );
-							triangle2.update();
-
-							if ( triangle.intersectsTriangle( triangle2 ) ) {
-
-								return true;
-
-							}
-
-						}
-
-					}
-
-				}
-
-			} else {
-
-				var left = /* node left */ stride4Offset + 8;
-				var right = /* node right */ uint32Array[ stride4Offset + 6 ];
-
-				arrayToBoxBuffer( /* left boundingData */ left, float32Array, boundingBox$1 );
-				var leftIntersection =
-					cachedObb.intersectsBox( boundingBox$1 ) &&
-					intersectsGeometryBuffer( left, mesh, geometry, geometryToBvh, cachedObb );
-
-				if ( leftIntersection ) { return true; }
-
-
-				arrayToBoxBuffer( /* right boundingData */ right, float32Array, boundingBox$1 );
-				var rightIntersection =
-					cachedObb.intersectsBox( boundingBox$1 ) &&
-					intersectsGeometryBuffer( right, mesh, geometry, geometryToBvh, cachedObb );
-
-				if ( rightIntersection ) { return true; }
-
-				return false;
-
-			}
-
-		};
-
-	} )();
-
-
-	function intersectRayBuffer( stride4Offset, array, ray, target ) {
-
-		arrayToBoxBuffer( stride4Offset, array, boundingBox$1 );
-		return ray.intersectBox( boundingBox$1, target );
-
-	}
-
-	var bufferStack = [];
-	var _prevBuffer;
-	var _float32Array;
-	var _uint16Array;
-	var _uint32Array;
-	function setBuffer( buffer ) {
-
-		if ( _prevBuffer ) {
-
-			bufferStack.push( _prevBuffer );
-
-		}
-
-		_prevBuffer = buffer;
-		_float32Array = new Float32Array( buffer );
-		_uint16Array = new Uint16Array( buffer );
-		_uint32Array = new Uint32Array( buffer );
-
-	}
-
-	function clearBuffer() {
-
-		_prevBuffer = null;
-		_float32Array = null;
-		_uint16Array = null;
-		_uint32Array = null;
-
-		if ( bufferStack.length ) {
-
-			setBuffer( bufferStack.pop() );
-
-		}
-
-	}
-
-	function arrayToBoxBuffer( stride4Offset, array, target ) {
-
-		target.min.x = array[ stride4Offset ];
-		target.min.y = array[ stride4Offset + 1 ];
-		target.min.z = array[ stride4Offset + 2 ];
-
-		target.max.x = array[ stride4Offset + 3 ];
-		target.max.y = array[ stride4Offset + 4 ];
-		target.max.z = array[ stride4Offset + 5 ];
-
-	}
-
-	// boundingData  				: 6 float32
-	// right / offset 				: 1 uint32
-	// splitAxis / isLeaf + count 	: 1 uint32 / 2 uint16
-	var BYTES_PER_NODE = 6 * 4 + 4 + 4;
-	var IS_LEAFNODE_FLAG = 0xFFFF;
-	var SKIP_GENERATION = Symbol( 'skip tree generation' );
-
-	var obb = new OrientedBox();
-	var temp = new THREE.Vector3();
-	var tri2 = new SeparatingAxisTriangle();
-	var temp1 = new THREE.Vector3();
-	var temp2 = new THREE.Vector3();
-
-	var MeshBVH = function MeshBVH( geo, options ) {
-		var obj;
-
-		if ( options === void 0 ) options = {};
-
-		if ( ! geo.isBufferGeometry ) {
-
-			throw new Error( 'MeshBVH: Only BufferGeometries are supported.' );
-
-		} else if ( geo.attributes.position.isInterleavedBufferAttribute ) {
-
-			throw new Error( 'MeshBVH: InterleavedBufferAttribute is not supported for the position attribute.' );
-
-		} else if ( geo.index && geo.index.isInterleavedBufferAttribute ) {
-
-			throw new Error( 'MeshBVH: InterleavedBufferAttribute is not supported for the index attribute.' );
-
-		}
-
-		// default options
-		options = Object.assign( ( obj = {
-
-			strategy: CENTER,
-			maxDepth: 40,
-			maxLeafTris: 10,
-			verbose: true,
-			lazyGeneration: true,
-
-			// undocumented options
-
-			// whether to the pack the data as a buffer or not. The data
-			// will not be packed if lazyGeneration is true.
-			packData: true
-
-		}, obj[ SKIP_GENERATION ] = false, obj ), options );
-		options.strategy = Math.max( 0, Math.min( 2, options.strategy ) );
-
-		this._isPacked = false;
-		this._roots = null;
-		if ( ! options[ SKIP_GENERATION ] ) {
-
-			this._roots = buildTree( geo, options );
-			if ( ! options.lazyGeneration && options.packData ) {
-
-				this._roots = MeshBVH.serialize( this, geo, false ).roots;
-				this._isPacked = true;
-
-			}
-
-		}
-
-	};
-
-	MeshBVH.serialize = function serialize ( bvh, geometry, copyIndexBuffer ) {
-			if ( copyIndexBuffer === void 0 ) copyIndexBuffer = true;
-
-
-		function finishTree( node ) {
-
-			if ( node.continueGeneration ) {
-
-				node.continueGeneration();
-
-			}
-
-			if ( ! node.count ) {
-
-				finishTree( node.left );
-				finishTree( node.right );
-
-			}
-
-		}
-
-		function countNodes( node ) {
-
-			if ( node.count ) {
-
-				return 1;
-
-			} else {
-
-				return 1 + countNodes( node.left ) + countNodes( node.right );
-
-			}
-
-		}
-
-		function populateBuffer( byteOffset, node ) {
-
-			var stride4Offset = byteOffset / 4;
-			var stride2Offset = byteOffset / 2;
-			var isLeaf = ! ! node.count;
-			var boundingData = node.boundingData;
-			for ( var i = 0; i < 6; i ++ ) {
-
-				float32Array[ stride4Offset + i ] = boundingData[ i ];
-
-			}
-
-			if ( isLeaf ) {
-
-				var offset = node.offset;
-				var count = node.count;
-				uint32Array[ stride4Offset + 6 ] = offset;
-				uint16Array[ stride2Offset + 14 ] = count;
-				uint16Array[ stride2Offset + 15 ] = IS_LEAFNODE_FLAG;
-				return byteOffset + BYTES_PER_NODE;
-
-			} else {
-
-				var left = node.left;
-				var right = node.right;
-				var splitAxis = node.splitAxis;
-
-				var nextUnusedPointer;
-				nextUnusedPointer = populateBuffer( byteOffset + BYTES_PER_NODE, left );
-
-				uint32Array[ stride4Offset + 6 ] = nextUnusedPointer / 4;
-				nextUnusedPointer = populateBuffer( nextUnusedPointer, right );
-
-				uint32Array[ stride4Offset + 7 ] = splitAxis;
-				return nextUnusedPointer;
-
-			}
-
-		}
-
-		var float32Array;
-		var uint32Array;
-		var uint16Array;
-
-		var roots = bvh._roots;
-		var rootData;
-
-		if ( bvh._isPacked ) {
-
-			rootData = roots;
-
-		} else {
-
-			rootData = [];
-			for ( var i = 0; i < roots.length; i ++ ) {
-
-				var root = roots[ i ];
-				finishTree( root );
-				var nodeCount = countNodes( root );
-
-				var buffer = new ArrayBuffer( BYTES_PER_NODE * nodeCount );
-				float32Array = new Float32Array( buffer );
-				uint32Array = new Uint32Array( buffer );
-				uint16Array = new Uint16Array( buffer );
-				populateBuffer( 0, root );
-				rootData.push( buffer );
-
-			}
-
-		}
-
-		var indexAttribute = geometry.getIndex();
-		var result = {
-			roots: rootData,
-			index: copyIndexBuffer ? indexAttribute.array.slice() : indexAttribute.array,
-		};
-
-		return result;
-
-	};
-
-	MeshBVH.deserialize = function deserialize ( data, geometry, setIndex ) {
-			var obj;
-
-			if ( setIndex === void 0 ) setIndex = true;
-
-		// function setData( byteOffset, node ) {
-
-		// const stride4Offset = byteOffset / 4;
-		// const stride2Offset = byteOffset / 2;
-		// const boundingData = new Float32Array( 6 );
-		// for ( let i = 0; i < 6; i ++ ) {
-
-		// 	boundingData[ i ] = float32Array[ stride4Offset + i ];
-
-		// }
-		// node.boundingData = boundingData;
-
-		// const isLeaf = uint16Array[ stride2Offset + 15 ] === IS_LEAFNODE_FLAG;
-		// if ( isLeaf ) {
-
-		// 	node.offset = uint32Array[ stride4Offset + 6 ];
-		// 	node.count = uint16Array[ stride2Offset + 14 ];
-
-		// } else {
-
-		// 	const left = new MeshBVHNode();
-		// 	const right = new MeshBVHNode();
-		// 	const leftOffset = stride4Offset + BYTES_PER_NODE / 4;
-		// 	const rightOffset = uint32Array[ stride4Offset + 6 ];
-
-		// 	setData( leftOffset * 4, left );
-		// 	setData( rightOffset * 4, right );
-
-		// 	node.left = left;
-		// 	node.right = right;
-		// 	node.splitAxis = uint32Array[ stride4Offset + 7 ];
-
-		// }
-
-		// }
-
-		// let float32Array;
-		// let uint32Array;
-		// let uint16Array;
-
-		// const { index, roots } = data;
-		// const bvh = new MeshBVH( geometry, { [ SKIP_GENERATION ]: true } );
-		// bvh._roots = [];
-		// for ( let i = 0; i < roots.length; i ++ ) {
-
-		// const buffer = roots[ i ];
-		// float32Array = new Float32Array( buffer );
-		// uint32Array = new Uint32Array( buffer );
-		// uint16Array = new Uint16Array( buffer );
-
-		// const root = new MeshBVHNode();
-		// setData( 0, root );
-		// bvh._roots.push( root );
-
-		// }
-
-		var index = data.index;
-			var roots = data.roots;
-		var bvh = new MeshBVH( geometry, ( obj = {}, obj[ SKIP_GENERATION ] = true, obj ) );
-		bvh._roots = roots;
-		bvh._isPacked = true;
-
-		if ( setIndex ) {
-
-			var indexAttribute = geometry.getIndex();
-			if ( indexAttribute === null ) {
-
-				var newIndex = new THREE.BufferAttribute( data.index, 1, false );
-				geometry.setIndex( newIndex );
-
-			} else if ( indexAttribute.array !== index ) {
-
-				indexAttribute.array.set( index );
-				indexAttribute.needsUpdate = true;
-
-			}
-
-		}
-
-		return bvh;
-
-	};
-
-	MeshBVH.prototype.traverse = function traverse ( callback, rootIndex ) {
-			if ( rootIndex === void 0 ) rootIndex = 0;
-
-
-		if ( this._isPacked ) {
-
-			var buffer = this._roots[ rootIndex ];
-			var uint32Array = new Uint32Array( buffer );
-			var uint16Array = new Uint16Array( buffer );
-			_traverseBuffer( 0 );
-
-			function _traverseBuffer( stride4Offset, depth ) {
-					if ( depth === void 0 ) depth = 0;
-
-
-				var stride2Offset = stride4Offset * 2;
-				var isLeaf = uint16Array[ stride2Offset + 15 ];
-				if ( isLeaf ) {
-
-					var offset = uint32Array[ stride4Offset + 6 ];
-					var count = uint16Array[ stride2Offset + 14 ];
-					callback( depth, isLeaf, new Float32Array( buffer, stride4Offset * 4, 6 ), offset, count );
-
-				} else {
-
-					var left = stride4Offset + BYTES_PER_NODE / 4;
-					var right = uint32Array[ stride4Offset + 6 ];
-					var splitAxis = uint32Array[ stride4Offset + 7 ];
-					callback( depth, isLeaf, new Float32Array( buffer, stride4Offset * 4, 6 ), splitAxis, false );
-
-					_traverseBuffer( left, depth + 1 );
-					_traverseBuffer( right, depth + 1 );
-
-				}
-
-			}
-
-		} else {
-
-			_traverseNode( this._roots[ rootIndex ] );
-
-			function _traverseNode( node, depth ) {
-					if ( depth === void 0 ) depth = 0;
-
-
-				var isLeaf = ! ! node.count;
-				if ( isLeaf ) {
-
-					callback( depth, isLeaf, node.boundingData, node.offset, node.count );
-
-				} else {
-
-					callback( depth, isLeaf, node.boundingData, node.splitAxis, ! ! node.continueGeneration );
-					if ( node.left ) { _traverseNode( node.left, depth + 1 ); }
-					if ( node.right ) { _traverseNode( node.right, depth + 1 ); }
-
-				}
-
-			}
-
-		}
-
-	};
-
-	/* Core Cast Functions */
-	MeshBVH.prototype.raycast = function raycast$1 ( mesh, raycaster, ray, intersects ) {
-
-		var isPacked = this._isPacked;
-		for ( var root of this._roots ) {
-
-			if ( isPacked ) {
-
-				setBuffer( root );
-				raycastBuffer( 0, mesh, raycaster, ray, intersects );
-
-			} else {
-
-				raycast( root, mesh, raycaster, ray, intersects );
-
-			}
-
-		}
-
-		isPacked && clearBuffer();
-
-	};
-
-	MeshBVH.prototype.raycastFirst = function raycastFirst$1 ( mesh, raycaster, ray ) {
-
-		var isPacked = this._isPacked;
-		var closestResult = null;
-		for ( var root of this._roots ) {
-
-			var result = (void 0);
-			if ( isPacked ) {
-
-				setBuffer( root );
-				result = raycastFirstBuffer( 0, mesh, raycaster, ray );
-
-			} else {
-
-				result = raycastFirst( root, mesh, raycaster, ray );
-
-			}
-
-			if ( result != null && ( closestResult == null || result.distance < closestResult.distance ) ) {
-
-				closestResult = result;
-
-			}
-
-		}
-
-		isPacked && clearBuffer();
-
-		return closestResult;
-
-	};
-
-	MeshBVH.prototype.intersectsGeometry = function intersectsGeometry$1 ( mesh, geometry, geomToMesh ) {
-
-		var isPacked = this._isPacked;
-		var result = false;
-		for ( var root of this._roots ) {
-
-			if ( isPacked ) {
-
-				setBuffer( root );
-				result = intersectsGeometryBuffer( 0, mesh, geometry, geomToMesh );
-
-			} else {
-
-				result = intersectsGeometry( root, mesh, geometry, geomToMesh );
-
-			}
-
-			if ( result ) {
-
-				break;
-
-			}
-
-		}
-
-		isPacked && clearBuffer();
-
-		return result;
-
-	};
-
-	MeshBVH.prototype.shapecast = function shapecast$1 ( mesh, intersectsBoundsFunc, intersectsTriangleFunc, orderNodesFunc ) {
-			if ( intersectsTriangleFunc === void 0 ) intersectsTriangleFunc = null;
-			if ( orderNodesFunc === void 0 ) orderNodesFunc = null;
-
-
-		var isPacked = this._isPacked;
-		var result = false;
-		for ( var root of this._roots ) {
-
-			if ( isPacked ) {
-
-				setBuffer( root );
-				result = shapecastBuffer( 0, mesh, intersectsBoundsFunc, intersectsTriangleFunc, orderNodesFunc );
-
-			} else {
-
-				result = shapecast( root, mesh, intersectsBoundsFunc, intersectsTriangleFunc, orderNodesFunc );
-
-			}
-
-			if ( result ) {
-
-				break;
-
-			}
-
-		}
-
-		isPacked && clearBuffer();
-
-		return result;
-
-	};
-
-	/* Derived Cast Functions */
-	MeshBVH.prototype.intersectsBox = function intersectsBox ( mesh, box, boxToMesh ) {
-
-		obb.set( box.min, box.max, boxToMesh );
-		obb.update();
-
-		return this.shapecast(
-			mesh,
-			box => obb.intersectsBox( box ),
-			tri => obb.intersectsTriangle( tri )
-		);
-
-	};
-
-	MeshBVH.prototype.intersectsSphere = function intersectsSphere ( mesh, sphere ) {
-
-		return this.shapecast(
-			mesh,
-			box => sphere.intersectsBox( box ),
-			tri => sphereIntersectTriangle( sphere, tri )
-		);
-
-	};
-
-	MeshBVH.prototype.closestPointToGeometry = function closestPointToGeometry ( mesh, geom, geometryToBvh, target1, target2, minThreshold, maxThreshold ) {
-			if ( target1 === void 0 ) target1 = null;
-			if ( target2 === void 0 ) target2 = null;
-			if ( minThreshold === void 0 ) minThreshold = 0;
-			if ( maxThreshold === void 0 ) maxThreshold = Infinity;
-
-
-		if ( ! geom.boundingBox ) {
-
-			geom.computeBoundingBox();
-
-		}
-
-		obb.set( geom.boundingBox.min, geom.boundingBox.max, geometryToBvh );
-		obb.update();
-
-		var pos = geom.attributes.position;
-		var index = geom.index;
-
-		var tempTarget1 = null;
-		var tempTarget2 = null;
-		if ( target1 ) {
-
-			tempTarget1 = temp1;
-
-		}
-
-		if ( target2 ) {
-
-			tempTarget2 = temp2;
-
-		}
-
-		var closestDistance = Infinity;
-		this.shapecast(
-			mesh,
-			( box, isLeaf, score ) => score < closestDistance && score < maxThreshold,
-			tri => {
-
-				var sphere1 = tri.sphere;
-				for ( var i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
-
-					setTriangle( tri2, i2, index, pos );
-					tri2.a.applyMatrix4( geometryToBvh );
-					tri2.b.applyMatrix4( geometryToBvh );
-					tri2.c.applyMatrix4( geometryToBvh );
-					tri2.sphere.setFromPoints( tri2.points );
-
-					var sphere2 = tri2.sphere;
-					var sphereDist = sphere2.center.distanceTo( sphere1.center ) - sphere2.radius - sphere1.radius;
-					if ( sphereDist > closestDistance ) {
-
-						continue;
-
-					}
-
-					tri2.update();
-
-					var dist = tri.distanceToTriangle( tri2, tempTarget1, tempTarget2 );
-					if ( dist < closestDistance ) {
-
-						if ( target1 ) {
-
-							target1.copy( tempTarget1 );
-
-						}
-
-						if ( target2 ) {
-
-							target2.copy( tempTarget2 );
-
-						}
-
-						closestDistance = dist;
-
-					}
-					if ( dist < minThreshold ) { return true; }
-
-				}
-
-				return false;
-
-			},
-			box => obb.distanceToBox( box, Math.min( closestDistance, maxThreshold ) )
-
-		);
-
-		return closestDistance;
-
-	};
-
-	MeshBVH.prototype.distanceToGeometry = function distanceToGeometry ( mesh, geom, matrix, minThreshold, maxThreshold ) {
-
-		return this.closestPointToGeometry( mesh, geom, matrix, null, null, minThreshold, maxThreshold );
-
-	};
-
-	MeshBVH.prototype.closestPointToPoint = function closestPointToPoint ( mesh, point, target, minThreshold, maxThreshold ) {
-			if ( minThreshold === void 0 ) minThreshold = 0;
-			if ( maxThreshold === void 0 ) maxThreshold = Infinity;
-
-
-		// early out if under minThreshold
-		// skip checking if over maxThreshold
-		// set minThreshold = maxThreshold to quickly check if a point is within a threshold
-		// returns Infinity if no value found
-		var closestDistance = Infinity;
-		this.shapecast(
-
-			mesh,
-			( box, isLeaf, score ) => score < closestDistance && score < maxThreshold,
-			tri => {
-
-				tri.closestPointToPoint( point, temp );
-				var dist = point.distanceTo( temp );
-				if ( dist < closestDistance ) {
-
-					if ( target ) {
-
-						target.copy( temp );
-
-					}
-					closestDistance = dist;
-
-				}
-
-				if ( dist < minThreshold ) {
-
-					return true;
-
-				} else {
-
-					return false;
-
-				}
-
-			},
-			box => box.distanceToPoint( point )
-
-		);
-
-		return closestDistance;
-
-	};
-
-	MeshBVH.prototype.distanceToPoint = function distanceToPoint ( mesh, point, minThreshold, maxThreshold ) {
-
-		return this.closestPointToPoint( mesh, point, null, minThreshold, maxThreshold );
-
-	};
-
-	var wiremat = new THREE.LineBasicMaterial( { color: 0x00FF88, transparent: true, opacity: 0.3 } );
-	var boxGeom = new THREE.Box3Helper().geometry;
-	var boundingBox$2 = new THREE.Box3();
-
-	var ray = new THREE.Ray();
-	var tmpInverseMatrix = new THREE.Matrix4();
-	var origMeshRaycastFunc = THREE.Mesh.prototype.raycast;
-
-	function acceleratedRaycast( raycaster, intersects ) {
-
-		if ( this.geometry.boundsTree ) {
-
-			if ( this.material === undefined ) { return; }
-
-			tmpInverseMatrix.getInverse( this.matrixWorld );
-			ray.copy( raycaster.ray ).applyMatrix4( tmpInverseMatrix );
-
-			if ( raycaster.firstHitOnly === true ) {
-
-				var res = this.geometry.boundsTree.raycastFirst( this, raycaster, ray );
-				if ( res ) { intersects.push( res ); }
-
-			} else {
-
-				this.geometry.boundsTree.raycast( this, raycaster, ray, intersects );
-
-			}
-
-		} else {
-
-			origMeshRaycastFunc.call( this, raycaster, intersects );
-
-		}
-
-	}
-
-	function computeBoundsTree( options ) {
-
-		this.boundsTree = new MeshBVH( this, options );
-		return this.boundsTree;
-
-	}
-
-	function disposeBoundsTree() {
-
-		this.boundsTree = null;
-
-	}
-
 	/**
 	 * @author alteredq / http://alteredqualia.com/
 	 * @author mrdoob / http://mrdoob.com/
@@ -13291,18 +10015,6 @@
 		constructor: BufferGeometry,
 
 		isBufferGeometry: true,
-
-		computeBoundsTree: function ( options ) {
-
-			computeBoundsTree( options );
-
-		},
-
-		disposeBoundsTree: function () {
-
-			disposeBoundsTree();
-
-		},
 
 		getIndex: function () {
 
@@ -14494,6 +11206,27 @@
 	 */
 
 	var _inverseMatrix = new Matrix4();
+	var _ray = new Ray();
+	var _sphere = new Sphere();
+
+	var _vA = new Vector3();
+	var _vB = new Vector3();
+	var _vC = new Vector3();
+
+	var _tempA = new Vector3();
+	var _tempB = new Vector3();
+	var _tempC = new Vector3();
+
+	var _morphA = new Vector3();
+	var _morphB = new Vector3();
+	var _morphC = new Vector3();
+
+	var _uvA = new Vector2();
+	var _uvB = new Vector2();
+	var _uvC = new Vector2();
+
+	var _intersectionPoint = new Vector3();
+	var _intersectionPointWorld = new Vector3();
 
 	function Mesh( geometry, material ) {
 
@@ -14582,218 +11315,216 @@
 
 		raycast: function ( raycaster, intersects ) {
 
-			acceleratedRaycast( raycaster, intersects );
+			var geometry = this.geometry;
+			var material = this.material;
+			var matrixWorld = this.matrixWorld;
 
-			// var geometry = this.geometry;
-			// var material = this.material;
-			// var matrixWorld = this.matrixWorld;
-			//
-			// if ( material === undefined ) return;
-			//
-			// // Checking boundingSphere distance to ray
-			//
-			// if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
-			//
-			// _sphere.copy( geometry.boundingSphere );
-			// _sphere.applyMatrix4( matrixWorld );
-			//
-			// if ( raycaster.ray.intersectsSphere( _sphere ) === false ) return;
-			//
-			// //
-			//
-			// _inverseMatrix.getInverse( matrixWorld );
-			// _ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix );
-			//
-			// // Check boundingBox before continuing
-			//
-			// if ( geometry.boundingBox !== null ) {
-			//
-			// 	if ( _ray.intersectsBox( geometry.boundingBox ) === false ) return;
-			//
-			// }
-			//
-			// var intersection;
-			//
-			// if ( geometry.isBufferGeometry ) {
-			//
-			// 	var a, b, c;
-			// 	var index = geometry.index;
-			// 	var position = geometry.attributes.position;
-			// 	var morphPosition = geometry.morphAttributes.position;
-			// 	var morphTargetsRelative = geometry.morphTargetsRelative;
-			// 	var uv = geometry.attributes.uv;
-			// 	var uv2 = geometry.attributes.uv2;
-			// 	var groups = geometry.groups;
-			// 	var drawRange = geometry.drawRange;
-			// 	var i, j, il, jl;
-			// 	var group, groupMaterial;
-			// 	var start, end;
-			//
-			// 	if ( index !== null ) {
-			//
-			// 		// indexed buffer geometry
-			//
-			// 		if ( Array.isArray( material ) ) {
-			//
-			// 			for ( i = 0, il = groups.length; i < il; i ++ ) {
-			//
-			// 				group = groups[ i ];
-			// 				groupMaterial = material[ group.materialIndex ];
-			//
-			// 				start = Math.max( group.start, drawRange.start );
-			// 				end = Math.min( ( group.start + group.count ), ( drawRange.start + drawRange.count ) );
-			//
-			// 				for ( j = start, jl = end; j < jl; j += 3 ) {
-			//
-			// 					a = index.getX( j );
-			// 					b = index.getX( j + 1 );
-			// 					c = index.getX( j + 2 );
-			//
-			// 					intersection = checkBufferGeometryIntersection( this, groupMaterial, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
-			//
-			// 					if ( intersection ) {
-			//
-			// 						intersection.faceIndex = Math.floor( j / 3 ); // triangle number in indexed buffer semantics
-			// 						intersection.face.materialIndex = group.materialIndex;
-			// 						intersects.push( intersection );
-			//
-			// 					}
-			//
-			// 				}
-			//
-			// 			}
-			//
-			// 		} else {
-			//
-			// 			start = Math.max( 0, drawRange.start );
-			// 			end = Math.min( index.count, ( drawRange.start + drawRange.count ) );
-			//
-			// 			for ( i = start, il = end; i < il; i += 3 ) {
-			//
-			// 				a = index.getX( i );
-			// 				b = index.getX( i + 1 );
-			// 				c = index.getX( i + 2 );
-			//
-			// 				intersection = checkBufferGeometryIntersection( this, material, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
-			//
-			// 				if ( intersection ) {
-			//
-			// 					intersection.faceIndex = Math.floor( i / 3 ); // triangle number in indexed buffer semantics
-			// 					intersects.push( intersection );
-			//
-			// 				}
-			//
-			// 			}
-			//
-			// 		}
-			//
-			// 	} else if ( position !== undefined ) {
-			//
-			// 		// non-indexed buffer geometry
-			//
-			// 		if ( Array.isArray( material ) ) {
-			//
-			// 			for ( i = 0, il = groups.length; i < il; i ++ ) {
-			//
-			// 				group = groups[ i ];
-			// 				groupMaterial = material[ group.materialIndex ];
-			//
-			// 				start = Math.max( group.start, drawRange.start );
-			// 				end = Math.min( ( group.start + group.count ), ( drawRange.start + drawRange.count ) );
-			//
-			// 				for ( j = start, jl = end; j < jl; j += 3 ) {
-			//
-			// 					a = j;
-			// 					b = j + 1;
-			// 					c = j + 2;
-			//
-			// 					intersection = checkBufferGeometryIntersection( this, groupMaterial, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
-			//
-			// 					if ( intersection ) {
-			//
-			// 						intersection.faceIndex = Math.floor( j / 3 ); // triangle number in non-indexed buffer semantics
-			// 						intersection.face.materialIndex = group.materialIndex;
-			// 						intersects.push( intersection );
-			//
-			// 					}
-			//
-			// 				}
-			//
-			// 			}
-			//
-			// 		} else {
-			//
-			// 			start = Math.max( 0, drawRange.start );
-			// 			end = Math.min( position.count, ( drawRange.start + drawRange.count ) );
-			//
-			// 			for ( i = start, il = end; i < il; i += 3 ) {
-			//
-			// 				a = i;
-			// 				b = i + 1;
-			// 				c = i + 2;
-			//
-			// 				intersection = checkBufferGeometryIntersection( this, material, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
-			//
-			// 				if ( intersection ) {
-			//
-			// 					intersection.faceIndex = Math.floor( i / 3 ); // triangle number in non-indexed buffer semantics
-			// 					intersects.push( intersection );
-			//
-			// 				}
-			//
-			// 			}
-			//
-			// 		}
-			//
-			// 	}
-			//
-			// } else if ( geometry.isGeometry ) {
-			//
-			// 	var fvA, fvB, fvC;
-			// 	var isMultiMaterial = Array.isArray( material );
-			//
-			// 	var vertices = geometry.vertices;
-			// 	var faces = geometry.faces;
-			// 	var uvs;
-			//
-			// 	var faceVertexUvs = geometry.faceVertexUvs[ 0 ];
-			// 	if ( faceVertexUvs.length > 0 ) uvs = faceVertexUvs;
-			//
-			// 	for ( var f = 0, fl = faces.length; f < fl; f ++ ) {
-			//
-			// 		var face = faces[ f ];
-			// 		var faceMaterial = isMultiMaterial ? material[ face.materialIndex ] : material;
-			//
-			// 		if ( faceMaterial === undefined ) continue;
-			//
-			// 		fvA = vertices[ face.a ];
-			// 		fvB = vertices[ face.b ];
-			// 		fvC = vertices[ face.c ];
-			//
-			// 		intersection = checkIntersection( this, faceMaterial, raycaster, _ray, fvA, fvB, fvC, _intersectionPoint );
-			//
-			// 		if ( intersection ) {
-			//
-			// 			if ( uvs && uvs[ f ] ) {
-			//
-			// 				var uvs_f = uvs[ f ];
-			// 				_uvA.copy( uvs_f[ 0 ] );
-			// 				_uvB.copy( uvs_f[ 1 ] );
-			// 				_uvC.copy( uvs_f[ 2 ] );
-			//
-			// 				intersection.uv = Triangle.getUV( _intersectionPoint, fvA, fvB, fvC, _uvA, _uvB, _uvC, new Vector2() );
-			//
-			// 			}
-			//
-			// 			intersection.face = face;
-			// 			intersection.faceIndex = f;
-			// 			intersects.push( intersection );
-			//
-			// 		}
-			//
-			// 	}
-			//
-			// }
+			if ( material === undefined ) { return; }
+
+			// Checking boundingSphere distance to ray
+
+			if ( geometry.boundingSphere === null ) { geometry.computeBoundingSphere(); }
+
+			_sphere.copy( geometry.boundingSphere );
+			_sphere.applyMatrix4( matrixWorld );
+
+			if ( raycaster.ray.intersectsSphere( _sphere ) === false ) { return; }
+
+			//
+
+			_inverseMatrix.getInverse( matrixWorld );
+			_ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix );
+
+			// Check boundingBox before continuing
+
+			if ( geometry.boundingBox !== null ) {
+
+				if ( _ray.intersectsBox( geometry.boundingBox ) === false ) { return; }
+
+			}
+
+			var intersection;
+
+			if ( geometry.isBufferGeometry ) {
+
+				var a, b, c;
+				var index = geometry.index;
+				var position = geometry.attributes.position;
+				var morphPosition = geometry.morphAttributes.position;
+				var morphTargetsRelative = geometry.morphTargetsRelative;
+				var uv = geometry.attributes.uv;
+				var uv2 = geometry.attributes.uv2;
+				var groups = geometry.groups;
+				var drawRange = geometry.drawRange;
+				var i, j, il, jl;
+				var group, groupMaterial;
+				var start, end;
+
+				if ( index !== null ) {
+
+					// indexed buffer geometry
+
+					if ( Array.isArray( material ) ) {
+
+						for ( i = 0, il = groups.length; i < il; i ++ ) {
+
+							group = groups[ i ];
+							groupMaterial = material[ group.materialIndex ];
+
+							start = Math.max( group.start, drawRange.start );
+							end = Math.min( ( group.start + group.count ), ( drawRange.start + drawRange.count ) );
+
+							for ( j = start, jl = end; j < jl; j += 3 ) {
+
+								a = index.getX( j );
+								b = index.getX( j + 1 );
+								c = index.getX( j + 2 );
+
+								intersection = checkBufferGeometryIntersection( this, groupMaterial, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
+
+								if ( intersection ) {
+
+									intersection.faceIndex = Math.floor( j / 3 ); // triangle number in indexed buffer semantics
+									intersection.face.materialIndex = group.materialIndex;
+									intersects.push( intersection );
+
+								}
+
+							}
+
+						}
+
+					} else {
+
+						start = Math.max( 0, drawRange.start );
+						end = Math.min( index.count, ( drawRange.start + drawRange.count ) );
+
+						for ( i = start, il = end; i < il; i += 3 ) {
+
+							a = index.getX( i );
+							b = index.getX( i + 1 );
+							c = index.getX( i + 2 );
+
+							intersection = checkBufferGeometryIntersection( this, material, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
+
+							if ( intersection ) {
+
+								intersection.faceIndex = Math.floor( i / 3 ); // triangle number in indexed buffer semantics
+								intersects.push( intersection );
+
+							}
+
+						}
+
+					}
+
+				} else if ( position !== undefined ) {
+
+					// non-indexed buffer geometry
+
+					if ( Array.isArray( material ) ) {
+
+						for ( i = 0, il = groups.length; i < il; i ++ ) {
+
+							group = groups[ i ];
+							groupMaterial = material[ group.materialIndex ];
+
+							start = Math.max( group.start, drawRange.start );
+							end = Math.min( ( group.start + group.count ), ( drawRange.start + drawRange.count ) );
+
+							for ( j = start, jl = end; j < jl; j += 3 ) {
+
+								a = j;
+								b = j + 1;
+								c = j + 2;
+
+								intersection = checkBufferGeometryIntersection( this, groupMaterial, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
+
+								if ( intersection ) {
+
+									intersection.faceIndex = Math.floor( j / 3 ); // triangle number in non-indexed buffer semantics
+									intersection.face.materialIndex = group.materialIndex;
+									intersects.push( intersection );
+
+								}
+
+							}
+
+						}
+
+					} else {
+
+						start = Math.max( 0, drawRange.start );
+						end = Math.min( position.count, ( drawRange.start + drawRange.count ) );
+
+						for ( i = start, il = end; i < il; i += 3 ) {
+
+							a = i;
+							b = i + 1;
+							c = i + 2;
+
+							intersection = checkBufferGeometryIntersection( this, material, raycaster, _ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c );
+
+							if ( intersection ) {
+
+								intersection.faceIndex = Math.floor( i / 3 ); // triangle number in non-indexed buffer semantics
+								intersects.push( intersection );
+
+							}
+
+						}
+
+					}
+
+				}
+
+			} else if ( geometry.isGeometry ) {
+
+				var fvA, fvB, fvC;
+				var isMultiMaterial = Array.isArray( material );
+
+				var vertices = geometry.vertices;
+				var faces = geometry.faces;
+				var uvs;
+
+				var faceVertexUvs = geometry.faceVertexUvs[ 0 ];
+				if ( faceVertexUvs.length > 0 ) { uvs = faceVertexUvs; }
+
+				for ( var f = 0, fl = faces.length; f < fl; f ++ ) {
+
+					var face = faces[ f ];
+					var faceMaterial = isMultiMaterial ? material[ face.materialIndex ] : material;
+
+					if ( faceMaterial === undefined ) { continue; }
+
+					fvA = vertices[ face.a ];
+					fvB = vertices[ face.b ];
+					fvC = vertices[ face.c ];
+
+					intersection = checkIntersection( this, faceMaterial, raycaster, _ray, fvA, fvB, fvC, _intersectionPoint );
+
+					if ( intersection ) {
+
+						if ( uvs && uvs[ f ] ) {
+
+							var uvs_f = uvs[ f ];
+							_uvA.copy( uvs_f[ 0 ] );
+							_uvB.copy( uvs_f[ 1 ] );
+							_uvC.copy( uvs_f[ 2 ] );
+
+							intersection.uv = Triangle.getUV( _intersectionPoint, fvA, fvB, fvC, _uvA, _uvB, _uvC, new Vector2() );
+
+						}
+
+						intersection.face = face;
+						intersection.faceIndex = f;
+						intersects.push( intersection );
+
+					}
+
+				}
+
+			}
 
 		},
 
@@ -14804,6 +11535,119 @@
 		}
 
 	} );
+
+	function checkIntersection( object, material, raycaster, ray, pA, pB, pC, point ) {
+
+		var intersect;
+
+		if ( material.side === BackSide ) {
+
+			intersect = ray.intersectTriangle( pC, pB, pA, true, point );
+
+		} else {
+
+			intersect = ray.intersectTriangle( pA, pB, pC, material.side !== DoubleSide, point );
+
+		}
+
+		if ( intersect === null ) { return null; }
+
+		_intersectionPointWorld.copy( point );
+		_intersectionPointWorld.applyMatrix4( object.matrixWorld );
+
+		var distance = raycaster.ray.origin.distanceTo( _intersectionPointWorld );
+
+		if ( distance < raycaster.near || distance > raycaster.far ) { return null; }
+
+		return {
+			distance: distance,
+			point: _intersectionPointWorld.clone(),
+			object: object
+		};
+
+	}
+
+	function checkBufferGeometryIntersection( object, material, raycaster, ray, position, morphPosition, morphTargetsRelative, uv, uv2, a, b, c ) {
+
+		_vA.fromBufferAttribute( position, a );
+		_vB.fromBufferAttribute( position, b );
+		_vC.fromBufferAttribute( position, c );
+
+		var morphInfluences = object.morphTargetInfluences;
+
+		if ( material.morphTargets && morphPosition && morphInfluences ) {
+
+			_morphA.set( 0, 0, 0 );
+			_morphB.set( 0, 0, 0 );
+			_morphC.set( 0, 0, 0 );
+
+			for ( var i = 0, il = morphPosition.length; i < il; i ++ ) {
+
+				var influence = morphInfluences[ i ];
+				var morphAttribute = morphPosition[ i ];
+
+				if ( influence === 0 ) { continue; }
+
+				_tempA.fromBufferAttribute( morphAttribute, a );
+				_tempB.fromBufferAttribute( morphAttribute, b );
+				_tempC.fromBufferAttribute( morphAttribute, c );
+
+				if ( morphTargetsRelative ) {
+
+					_morphA.addScaledVector( _tempA, influence );
+					_morphB.addScaledVector( _tempB, influence );
+					_morphC.addScaledVector( _tempC, influence );
+
+				} else {
+
+					_morphA.addScaledVector( _tempA.sub( _vA ), influence );
+					_morphB.addScaledVector( _tempB.sub( _vB ), influence );
+					_morphC.addScaledVector( _tempC.sub( _vC ), influence );
+
+				}
+
+			}
+
+			_vA.add( _morphA );
+			_vB.add( _morphB );
+			_vC.add( _morphC );
+
+		}
+
+		var intersection = checkIntersection( object, material, raycaster, ray, _vA, _vB, _vC, _intersectionPoint );
+
+		if ( intersection ) {
+
+			if ( uv ) {
+
+				_uvA.fromBufferAttribute( uv, a );
+				_uvB.fromBufferAttribute( uv, b );
+				_uvC.fromBufferAttribute( uv, c );
+
+				intersection.uv = Triangle.getUV( _intersectionPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2() );
+
+			}
+
+			if ( uv2 ) {
+
+				_uvA.fromBufferAttribute( uv2, a );
+				_uvB.fromBufferAttribute( uv2, b );
+				_uvC.fromBufferAttribute( uv2, c );
+
+				intersection.uv2 = Triangle.getUV( _intersectionPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2() );
+
+			}
+
+			var face = new Face3( a, b, c );
+			Triangle.getNormal( _vA, _vB, _vC, face.normal );
+
+			intersection.face = face;
+
+		}
+
+		return intersection;
+
+	}
 
 	/**
 	 * @author mrdoob / http://mrdoob.com/
@@ -17247,7 +14091,7 @@
 	 * @author bhouston / http://clara.io
 	 */
 
-	var _sphere = new Sphere();
+	var _sphere$1 = new Sphere();
 	var _vector$5 = new Vector3();
 
 	function Frustum( p0, p1, p2, p3, p4, p5 ) {
@@ -17328,19 +14172,19 @@
 
 			if ( geometry.boundingSphere === null ) { geometry.computeBoundingSphere(); }
 
-			_sphere.copy( geometry.boundingSphere ).applyMatrix4( object.matrixWorld );
+			_sphere$1.copy( geometry.boundingSphere ).applyMatrix4( object.matrixWorld );
 
-			return this.intersectsSphere( _sphere );
+			return this.intersectsSphere( _sphere$1 );
 
 		},
 
 		intersectsSprite: function ( sprite ) {
 
-			_sphere.center.set( 0, 0, 0 );
-			_sphere.radius = 0.7071067811865476;
-			_sphere.applyMatrix4( sprite.matrixWorld );
+			_sphere$1.center.set( 0, 0, 0 );
+			_sphere$1.radius = 0.7071067811865476;
+			_sphere$1.applyMatrix4( sprite.matrixWorld );
 
-			return this.intersectsSphere( _sphere );
+			return this.intersectsSphere( _sphere$1 );
 
 		},
 
@@ -29732,13 +26576,13 @@
 	var _rotatedPosition = new Vector2();
 	var _viewWorldMatrix = new Matrix4();
 
-	var _vA = new Vector3();
-	var _vB = new Vector3();
-	var _vC = new Vector3();
+	var _vA$1 = new Vector3();
+	var _vB$1 = new Vector3();
+	var _vC$1 = new Vector3();
 
-	var _uvA = new Vector2();
-	var _uvB = new Vector2();
-	var _uvC = new Vector2();
+	var _uvA$1 = new Vector2();
+	var _uvB$1 = new Vector2();
+	var _uvC$1 = new Vector2();
 
 	function Sprite( material ) {
 
@@ -29810,24 +26654,24 @@
 
 			var center = this.center;
 
-			transformVertex( _vA.set( - 0.5, - 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
-			transformVertex( _vB.set( 0.5, - 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
-			transformVertex( _vC.set( 0.5, 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
+			transformVertex( _vA$1.set( - 0.5, - 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
+			transformVertex( _vB$1.set( 0.5, - 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
+			transformVertex( _vC$1.set( 0.5, 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
 
-			_uvA.set( 0, 0 );
-			_uvB.set( 1, 0 );
-			_uvC.set( 1, 1 );
+			_uvA$1.set( 0, 0 );
+			_uvB$1.set( 1, 0 );
+			_uvC$1.set( 1, 1 );
 
 			// check first triangle
-			var intersect = raycaster.ray.intersectTriangle( _vA, _vB, _vC, false, _intersectPoint );
+			var intersect = raycaster.ray.intersectTriangle( _vA$1, _vB$1, _vC$1, false, _intersectPoint );
 
 			if ( intersect === null ) {
 
 				// check second triangle
-				transformVertex( _vB.set( - 0.5, 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
-				_uvB.set( 0, 1 );
+				transformVertex( _vB$1.set( - 0.5, 0.5, 0 ), _mvPosition, center, _worldScale, sin, cos );
+				_uvB$1.set( 0, 1 );
 
-				intersect = raycaster.ray.intersectTriangle( _vA, _vC, _vB, false, _intersectPoint );
+				intersect = raycaster.ray.intersectTriangle( _vA$1, _vC$1, _vB$1, false, _intersectPoint );
 				if ( intersect === null ) {
 
 					return;
@@ -29844,7 +26688,7 @@
 
 				distance: distance,
 				point: _intersectPoint.clone(),
-				uv: Triangle.getUV( _intersectPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2() ),
+				uv: Triangle.getUV( _intersectPoint, _vA$1, _vB$1, _vC$1, _uvA$1, _uvB$1, _uvC$1, new Vector2() ),
 				face: null,
 				object: this
 
@@ -30555,8 +27399,8 @@
 	var _start = new Vector3();
 	var _end = new Vector3();
 	var _inverseMatrix$1 = new Matrix4();
-	var _ray = new Ray();
-	var _sphere$1 = new Sphere();
+	var _ray$1 = new Ray();
+	var _sphere$2 = new Sphere();
 
 	function Line( geometry, material, mode ) {
 
@@ -30642,16 +27486,16 @@
 
 			if ( geometry.boundingSphere === null ) { geometry.computeBoundingSphere(); }
 
-			_sphere$1.copy( geometry.boundingSphere );
-			_sphere$1.applyMatrix4( matrixWorld );
-			_sphere$1.radius += threshold;
+			_sphere$2.copy( geometry.boundingSphere );
+			_sphere$2.applyMatrix4( matrixWorld );
+			_sphere$2.radius += threshold;
 
-			if ( raycaster.ray.intersectsSphere( _sphere$1 ) === false ) { return; }
+			if ( raycaster.ray.intersectsSphere( _sphere$2 ) === false ) { return; }
 
 			//
 
 			_inverseMatrix$1.getInverse( matrixWorld );
-			_ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$1 );
+			_ray$1.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$1 );
 
 			var localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
 			var localThresholdSq = localThreshold * localThreshold;
@@ -30680,7 +27524,7 @@
 						vStart.fromArray( positions, a * 3 );
 						vEnd.fromArray( positions, b * 3 );
 
-						var distSq = _ray.distanceSqToSegment( vStart, vEnd, interRay, interSegment );
+						var distSq = _ray$1.distanceSqToSegment( vStart, vEnd, interRay, interSegment );
 
 						if ( distSq > localThresholdSq ) { continue; }
 
@@ -30712,7 +27556,7 @@
 						vStart.fromArray( positions, 3 * i );
 						vEnd.fromArray( positions, 3 * i + 3 );
 
-						var distSq = _ray.distanceSqToSegment( vStart, vEnd, interRay, interSegment );
+						var distSq = _ray$1.distanceSqToSegment( vStart, vEnd, interRay, interSegment );
 
 						if ( distSq > localThresholdSq ) { continue; }
 
@@ -30746,7 +27590,7 @@
 
 				for ( var i = 0; i < nbVertices - 1; i += step ) {
 
-					var distSq = _ray.distanceSqToSegment( vertices[ i ], vertices[ i + 1 ], interRay, interSegment );
+					var distSq = _ray$1.distanceSqToSegment( vertices[ i ], vertices[ i + 1 ], interRay, interSegment );
 
 					if ( distSq > localThresholdSq ) { continue; }
 
@@ -30945,8 +27789,8 @@
 	 */
 
 	var _inverseMatrix$2 = new Matrix4();
-	var _ray$1 = new Ray();
-	var _sphere$2 = new Sphere();
+	var _ray$2 = new Ray();
+	var _sphere$3 = new Sphere();
 	var _position$1 = new Vector3();
 
 	function Points( geometry, material ) {
@@ -30978,16 +27822,16 @@
 
 			if ( geometry.boundingSphere === null ) { geometry.computeBoundingSphere(); }
 
-			_sphere$2.copy( geometry.boundingSphere );
-			_sphere$2.applyMatrix4( matrixWorld );
-			_sphere$2.radius += threshold;
+			_sphere$3.copy( geometry.boundingSphere );
+			_sphere$3.applyMatrix4( matrixWorld );
+			_sphere$3.radius += threshold;
 
-			if ( raycaster.ray.intersectsSphere( _sphere$2 ) === false ) { return; }
+			if ( raycaster.ray.intersectsSphere( _sphere$3 ) === false ) { return; }
 
 			//
 
 			_inverseMatrix$2.getInverse( matrixWorld );
-			_ray$1.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$2 );
+			_ray$2.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$2 );
 
 			var localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
 			var localThresholdSq = localThreshold * localThreshold;
@@ -31094,13 +27938,13 @@
 
 	function testPoint( point, index, localThresholdSq, matrixWorld, raycaster, intersects, object ) {
 
-		var rayPointDistanceSq = _ray$1.distanceSqToPoint( point );
+		var rayPointDistanceSq = _ray$2.distanceSqToPoint( point );
 
 		if ( rayPointDistanceSq < localThresholdSq ) {
 
 			var intersectPoint = new Vector3();
 
-			_ray$1.closestPointToPoint( point, intersectPoint );
+			_ray$2.closestPointToPoint( point, intersectPoint );
 			intersectPoint.applyMatrix4( matrixWorld );
 
 			var distance = raycaster.ray.origin.distanceTo( intersectPoint );
@@ -35720,6 +32564,8 @@
 	CircleBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
 	CircleBufferGeometry.prototype.constructor = CircleBufferGeometry;
 
+
+
 	var Geometries = /*#__PURE__*/Object.freeze({
 		__proto__: null,
 		WireframeGeometry: WireframeGeometry,
@@ -36763,6 +33609,8 @@
 		return this;
 
 	};
+
+
 
 	var Materials = /*#__PURE__*/Object.freeze({
 		__proto__: null,
@@ -41087,6 +37935,8 @@
 		return this;
 
 	};
+
+
 
 	var Curves = /*#__PURE__*/Object.freeze({
 		__proto__: null,

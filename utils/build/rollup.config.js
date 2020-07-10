@@ -1,5 +1,4 @@
 import buble from 'rollup-plugin-buble';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
 
 function glconstants() {
 
@@ -206,14 +205,12 @@ export default [
 	{
 		input: 'src/Three.js',
 		plugins: [
-			nodeResolve(),
 			glconstants(),
 			glsl(),
 			buble( {
 				transforms: {
 					arrow: false,
-					classes: true,
-					forOf: false
+					classes: true
 				}
 			} )
 		],
@@ -229,7 +226,6 @@ export default [
 	{
 		input: 'src/Three.js',
 		plugins: [
-			nodeResolve(),
 			glconstants(),
 			glsl()
 		],
