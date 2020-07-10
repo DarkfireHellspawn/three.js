@@ -82,12 +82,7 @@ Object.assign(BufferAttribute.prototype, {
 		index1 *= this.itemSize;
 		index2 *= attribute.itemSize;
 
-<<<<<<< HEAD
-		for (var i = 0, l = this.itemSize; i < l; i++)
-		{
-=======
 		for ( let i = 0, l = this.itemSize; i < l; i ++ ) {
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			this.array[index1 + i] = attribute.array[index2 + i];
 
@@ -112,16 +107,9 @@ Object.assign(BufferAttribute.prototype, {
 		const array = this.array;
 		let offset = 0;
 
-<<<<<<< HEAD
-		for (var i = 0, l = colors.length; i < l; i++)
-		{
-
-			var color = colors[i];
-=======
 		for ( let i = 0, l = colors.length; i < l; i ++ ) {
 
 			let color = colors[ i ];
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			if (color === undefined)
 			{
@@ -147,16 +135,9 @@ Object.assign(BufferAttribute.prototype, {
 		const array = this.array;
 		let offset = 0;
 
-<<<<<<< HEAD
-		for (var i = 0, l = vectors.length; i < l; i++)
-		{
-
-			var vector = vectors[i];
-=======
 		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
 
 			let vector = vectors[ i ];
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			if (vector === undefined)
 			{
@@ -181,16 +162,9 @@ Object.assign(BufferAttribute.prototype, {
 		const array = this.array;
 		let offset = 0;
 
-<<<<<<< HEAD
-		for (var i = 0, l = vectors.length; i < l; i++)
-		{
-
-			var vector = vectors[i];
-=======
 		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
 
 			let vector = vectors[ i ];
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			if (vector === undefined)
 			{
@@ -216,16 +190,9 @@ Object.assign(BufferAttribute.prototype, {
 		const array = this.array;
 		let offset = 0;
 
-<<<<<<< HEAD
-		for (var i = 0, l = vectors.length; i < l; i++)
-		{
-
-			var vector = vectors[i];
-=======
 		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
 
 			let vector = vectors[ i ];
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			if (vector === undefined)
 			{
@@ -249,18 +216,6 @@ Object.assign(BufferAttribute.prototype, {
 	applyMatrix3: function (m)
 	{
 
-<<<<<<< HEAD
-		for (var i = 0, l = this.count; i < l; i++)
-		{
-
-			_vector.x = this.getX(i);
-			_vector.y = this.getY(i);
-			_vector.z = this.getZ(i);
-
-			_vector.applyMatrix3(m);
-
-			this.setXYZ(i, _vector.x, _vector.y, _vector.z);
-=======
 		if ( this.itemSize === 2 ) {
 
 			for ( let i = 0, l = this.count; i < l; i ++ ) {
@@ -282,7 +237,6 @@ Object.assign(BufferAttribute.prototype, {
 				this.setXYZ( i, _vector.x, _vector.y, _vector.z );
 
 			}
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		}
 
@@ -293,12 +247,7 @@ Object.assign(BufferAttribute.prototype, {
 	applyMatrix4: function (m)
 	{
 
-<<<<<<< HEAD
-		for (var i = 0, l = this.count; i < l; i++)
-		{
-=======
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			_vector.x = this.getX(i);
 			_vector.y = this.getY(i);
@@ -317,12 +266,7 @@ Object.assign(BufferAttribute.prototype, {
 	applyNormalMatrix: function (m)
 	{
 
-<<<<<<< HEAD
-		for (var i = 0, l = this.count; i < l; i++)
-		{
-=======
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			_vector.x = this.getX(i);
 			_vector.y = this.getY(i);
@@ -341,12 +285,7 @@ Object.assign(BufferAttribute.prototype, {
 	transformDirection: function (m)
 	{
 
-<<<<<<< HEAD
-		for (var i = 0, l = this.count; i < l; i++)
-		{
-=======
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 			_vector.x = this.getX(i);
 			_vector.y = this.getY(i);

@@ -78,13 +78,8 @@ function WebGLAttributes(gl, capabilities)
 	function updateBuffer(buffer, attribute, bufferType)
 	{
 
-<<<<<<< HEAD
-		var array = attribute.array;
-		var updateRanges = attribute.updateRanges;
-=======
 		const array = attribute.array;
-		const updateRange = attribute.updateRange;
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
+		const updateRanges = attribute.updateRanges;
 
 		gl.bindBuffer(bufferType, buffer);
 
@@ -137,11 +132,7 @@ function WebGLAttributes(gl, capabilities)
 
 		if (attribute.isInterleavedBufferAttribute) attribute = attribute.data;
 
-<<<<<<< HEAD
-		var data = buffers.get(attribute);
-=======
 		const data = buffers.get( attribute );
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		if (data)
 		{
@@ -159,11 +150,7 @@ function WebGLAttributes(gl, capabilities)
 
 		if (attribute.isInterleavedBufferAttribute) attribute = attribute.data;
 
-<<<<<<< HEAD
-		var data = buffers.get(attribute);
-=======
 		const data = buffers.get( attribute );
->>>>>>> e2b7108b61ef17ac95b7e46a51c049ce8bf8a02e
 
 		if (data === undefined)
 		{
