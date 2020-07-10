@@ -45509,22 +45509,22 @@ function ascSort( a, b ) {
 
 }
 
-function intersectObject( object, raycaster, intersects, recursive ) {
+function intersectObject( object, raycaster, intersects, recursive, firstHitOnly ) {
 
 	if ( object.layers.test( raycaster.layers ) ) {
 
-		if ( object instanceof Mesh ) {
+		if ( object instanceof Mesh || object instanceof LineSegments ) {
 
-			object.raycast( raycaster, intersects, this.firstHitOnly );
+			object.raycast( raycaster, intersects, firstHitOnly );
 
 		} else {
 
-			object.raycast(raycaster, intersects);
+			object.raycast( raycaster, intersects );
 
 		}
 	}
 
-	if ( this.firstHitOnly && intersects.length > 0 ) {
+	if ( firstHitOnly && intersects.length > 0 ) {
 
 		return;
 
@@ -45536,9 +45536,9 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 
 		for ( var i = 0, l = children.length; i < l; i ++ ) {
 
-			intersectObject( children[ i ], raycaster, intersects, true );
+			intersectObject( children[ i ], raycaster, intersects, true, firstHitOnly );
 
-			if ( this.firstHitOnly && intersects.length > 0 ) {
+			if ( firstHitOnly && intersects.length > 0 ) {
 
 				return;
 
@@ -45586,7 +45586,7 @@ Object.assign( Raycaster.prototype, {
 
 		var intersects = optionalTarget || [];
 
-		intersectObject( object, this, intersects, recursive );
+		intersectObject( object, this, intersects, recursive, this.firstHitOnly );
 
 		intersects.sort( ascSort );
 
@@ -45607,7 +45607,7 @@ Object.assign( Raycaster.prototype, {
 
 		for ( var i = 0, l = objects.length; i < l; i ++ ) {
 
-			intersectObject( objects[ i ], this, intersects, recursive );
+			intersectObject( objects[ i ], this, intersects, recursive, this.firstHitOnly );
 
 		}
 
