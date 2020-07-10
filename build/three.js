@@ -45521,7 +45521,7 @@
 
 		if ( object.layers.test( raycaster.layers ) ) {
 
-			if ( object instanceof Mesh || object instanceof LineSegments ) {
+			if ( object instanceof Mesh || object instanceof Line || object instanceof LineSegments ) {
 
 				object.raycast( raycaster, intersects, firstHitOnly );
 
