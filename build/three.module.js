@@ -51787,7 +51787,16 @@ Object.assign( Raycaster.prototype, {
 
 		} else if ( ( camera && camera.isOrthographicCamera ) ) {
 
-			this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+			if ( camera.near < 0 ) {
+
+				this.ray.origin.set( coords.x, coords.y, camera.near / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+
+			} else {
+
+				this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+
+			}
+			
 			this.ray.direction.set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
 			this.camera = camera;
 
